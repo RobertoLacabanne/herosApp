@@ -1,0 +1,33 @@
+{
+  "name": "erhos-turnos",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RobertoLacabanne/herosApp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RobertoLacabanne/herosApp/issues"
+  },
+  "homepage": "https://github.com/RobertoLacabanne/herosApp#readme",
+  "dependencies": {
+    "@netlify/blobs": "^11.1.7",
+    "lucide-react": "^1.64.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^6.0.3",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^7.0.2",
+    "vite": "^5.4.21"
+  },
+  "private": true,
+  "type": "module"
+}
