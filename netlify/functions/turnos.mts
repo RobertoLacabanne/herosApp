@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import type { Config, Context } from "@netlify/functions";
+import { sesionActual } from "../lib/sesion.mts";
 
 const ESTADOS = ["pendiente", "confirmado", "cancelado"] as const;
 const SERVICIOS = ["laser", "facial"];
@@ -11,11 +12,6 @@ const json = (data: unknown, status = 200) => Response.json(data, { status });
 
 const texto = (v: unknown, max: number) =>
   typeof v === "string" ? v.trim().slice(0, max) : "";
-
-function autorizado(req: Request) {
-  const pin = Netlify.env.get("PANEL_PIN");
-  return !!pin && req.headers.get("x-panel-pin") === pin;
-}
 
 async function crear(req: Request) {
   let b: Record<string, unknown>;
@@ -96,7 +92,7 @@ export default async (req: Request, context: Context) => {
 
   if (req.method === "POST" && !id) return crear(req);
 
-  if (!autorizado(req)) return json({ error: "PIN incorrecto" }, 401);
+  if (!(await sesionActual(context))) return json({ error: "Sin sesión" }, 401);
 
   if (req.method === "GET" && !id) return listar();
   if (req.method === "PATCH" && id) return actualizar(req, id);

@@ -1,9 +1,8 @@
 import {
-  COMBOS_FACIALES,
-  COMBOS_LASER,
   FRANJAS,
   NEGOCIO,
   SERVICIOS,
+  type Catalogo,
   type Combo,
   type FranjaId,
   type Publico,
@@ -53,17 +52,17 @@ export const pedidoVacio: Pedido = {
   comentario: "",
 };
 
-export function combosDe(p: Pick<Pedido, "servicio" | "publico">): Combo[] {
-  if (p.servicio === "laser") return COMBOS_LASER[p.publico];
-  if (p.servicio === "facial") return COMBOS_FACIALES;
+export function combosDe(p: Pick<Pedido, "servicio" | "publico">, cat: Catalogo): Combo[] {
+  if (p.servicio === "laser") return cat.combosLaser[p.publico];
+  if (p.servicio === "facial") return cat.combosFaciales;
   return [];
 }
 
 const mismoConjunto = (a: string[], b: string[]) =>
   a.length === b.length && a.every((x) => b.includes(x));
 
-export function comboElegido(p: Pedido): Combo | null {
-  return combosDe(p).find((c) => mismoConjunto(c.items, p.items)) ?? null;
+export function comboElegido(p: Pedido, cat: Catalogo): Combo | null {
+  return combosDe(p, cat).find((c) => mismoConjunto(c.items, p.items)) ?? null;
 }
 
 export function parseFecha(iso: string): Date {
@@ -112,18 +111,18 @@ export type Borrador = Omit<Solicitud, "fecha" | "franja"> & {
   franja: FranjaId | null;
 };
 
-export function aSolicitud(p: Pedido, id: string): Solicitud {
-  return aBorrador(p, id) as Solicitud;
+export function aSolicitud(p: Pedido, id: string, cat: Catalogo): Solicitud {
+  return aBorrador(p, id, cat) as Solicitud;
 }
 
-export function aBorrador(p: Pedido, id: string): Borrador {
+export function aBorrador(p: Pedido, id: string, cat: Catalogo): Borrador {
   return {
     id,
     creado: new Date().toISOString(),
     estado: "pendiente",
     servicio: p.servicio ?? "laser",
     publico: p.servicio === "laser" ? p.publico : null,
-    combo: comboElegido(p)?.nombre ?? null,
+    combo: comboElegido(p, cat)?.nombre ?? null,
     items: p.items,
     otraZona: p.otraZona.trim(),
     fecha: p.fecha,

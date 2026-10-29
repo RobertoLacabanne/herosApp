@@ -1,88 +1,69 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, Clock, LockKeyhole, LogOut, Phone, RefreshCw, Search, Trash2, Undo2, X } from "lucide-react";
-import { NEGOCIO, SERVICIOS } from "./data";
-import { IconoWhatsApp, Logo, Ramita } from "./icons";
-import { fechaLarga, linkWhatsApp, nombreFranja, type Solicitud } from "./turno";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, Check, Clock, Phone, RefreshCw, Search, Trash2, Undo2, X } from "lucide-react";
+import { SERVICIOS } from "../data";
+import { IconoWhatsApp, Ramita } from "../icons";
+import { fechaLarga, linkWhatsApp, nombreFranja, type Solicitud } from "../turno";
+import { api, SinSesion, type Aviso } from "./api";
 
 type Estado = Solicitud["estado"];
 type Filtro = Estado | "todos";
 
-const CLAVE_PIN = "erhos-panel-pin";
-
-function leerPin() {
-  try {
-    return localStorage.getItem(CLAVE_PIN) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function guardarPin(pin: string) {
-  try {
-    if (pin) localStorage.setItem(CLAVE_PIN, pin);
-    else localStorage.removeItem(CLAVE_PIN);
-  } catch {
-    /* sin almacenamiento: se pide el PIN cada vez */
-  }
-}
-
-async function api(pin: string, path = "", init: RequestInit = {}) {
-  const res = await fetch(`/api/turnos${path}`, {
-    ...init,
-    headers: { "content-type": "application/json", "x-panel-pin": pin, ...init.headers },
-  });
-  if (res.status === 401) throw new Error("pin");
-  if (!res.ok) throw new Error("red");
-  return res.json();
-}
-
-export function Panel() {
-  const [pin, setPin] = useState(leerPin);
+export function Pedidos({
+  onAviso,
+  onSinSesion,
+  onPendientes,
+}: {
+  onAviso: (a: Aviso) => void;
+  onSinSesion: () => void;
+  onPendientes: (n: number) => void;
+}) {
   const [solicitudes, setSolicitudes] = useState<Solicitud[] | null>(null);
   const [error, setError] = useState("");
-  const [toast, setToast] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("pendiente");
+  const [busqueda, setBusqueda] = useState("");
 
-  const cargar = useCallback(
-    async (p = pin) => {
-      setError("");
-      try {
-        const { solicitudes } = await api(p);
-        setSolicitudes(solicitudes);
-        guardarPin(p);
-        setPin(p);
-      } catch (e) {
-        if ((e as Error).message === "pin") {
-          guardarPin("");
-          setPin("");
-          setError("Ese PIN no es correcto.");
-        } else setError("No pude cargar los pedidos. Probá de nuevo.");
-      }
-    },
-    [pin],
-  );
+  function manejar(e: unknown) {
+    if (e instanceof SinSesion) onSinSesion();
+    else onAviso({ texto: (e as Error).message, tipo: "error" });
+  }
+
+  async function cargar(avisar = false) {
+    setError("");
+    try {
+      const r = await api<{ solicitudes: Solicitud[] }>("/api/turnos");
+      setSolicitudes(r.solicitudes);
+      if (avisar) onAviso({ texto: "Lista actualizada" });
+    } catch (e) {
+      if (e instanceof SinSesion) onSinSesion();
+      else setError("No pude cargar los pedidos. Revisá la conexión y probá de nuevo.");
+    }
+  }
 
   useEffect(() => {
-    if (pin) cargar(pin);
+    cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(""), 2400);
-    return () => clearTimeout(t);
-  }, [toast]);
+    if (solicitudes) onPendientes(solicitudes.filter((s) => s.estado === "pendiente").length);
+  }, [solicitudes, onPendientes]);
 
   async function cambiarEstado(s: Solicitud, estado: Estado) {
     const previo = solicitudes;
     setSolicitudes((l) => l?.map((x) => (x.id === s.id ? { ...x, estado } : x)) ?? null);
     try {
-      await api(pin, `/${s.id}`, { method: "PATCH", body: JSON.stringify({ estado }) });
-      setToast(
-        estado === "confirmado" ? `Turno de ${s.nombre} confirmado` : estado === "cancelado" ? "Pedido cancelado" : "Volvió a pendientes",
-      );
-    } catch {
+      await api(`/api/turnos/${s.id}`, { method: "PATCH", body: JSON.stringify({ estado }) });
+      onAviso({
+        texto:
+          estado === "confirmado"
+            ? `Turno de ${s.nombre.split(" ")[0]} confirmado`
+            : estado === "cancelado"
+              ? "Pedido cancelado"
+              : "Volvió a pendientes",
+      });
+    } catch (e) {
       setSolicitudes(previo);
-      setToast("No se pudo guardar el cambio");
+      manejar(e);
     }
   }
 
@@ -91,131 +72,23 @@ export function Panel() {
     const previo = solicitudes;
     setSolicitudes((l) => l?.filter((x) => x.id !== s.id) ?? null);
     try {
-      await api(pin, `/${s.id}`, { method: "DELETE" });
-      setToast("Pedido borrado");
-    } catch {
+      await api(`/api/turnos/${s.id}`, { method: "DELETE" });
+      onAviso({ texto: "Pedido borrado" });
+    } catch (e) {
       setSolicitudes(previo);
-      setToast("No se pudo borrar");
+      manejar(e);
     }
   }
 
-  if (!pin || (error && !solicitudes)) {
-    return <Acceso error={error} onEntrar={(p) => cargar(p)} />;
-  }
-
-  return (
-    <>
-      <header className="barra barra-angosta">
-        <Logo />
-        <button
-          type="button"
-          className="btn btn-fantasma btn-sm"
-          onClick={() => {
-            guardarPin("");
-            setPin("");
-            setSolicitudes(null);
-          }}
-        >
-          <LogOut /> Salir
-        </button>
-      </header>
-      <main className="panel">
-        {solicitudes ? (
-          <Lista
-            solicitudes={solicitudes}
-            onEstado={cambiarEstado}
-            onBorrar={borrar}
-            onRecargar={async () => {
-              await cargar();
-              setToast("Lista actualizada");
-            }}
-          />
-        ) : (
-          <>
-            <div className="panel-cabecera">
-              <div>
-                <span className="eyebrow">Panel de {NEGOCIO.profesional}</span>
-                <h1>Pedidos de turno</h1>
-              </div>
-            </div>
-            <div className="solicitudes">
-              <div className="esqueleto" />
-              <div className="esqueleto" />
-              <div className="esqueleto" />
-            </div>
-          </>
-        )}
-        {error && <p className="error">{error}</p>}
-      </main>
-      {toast && (
-        <div className="toast" role="status">
-          <Check /> {toast}
-        </div>
-      )}
-    </>
-  );
-}
-
-function Acceso({ error, onEntrar }: { error: string; onEntrar: (pin: string) => void }) {
-  const [valor, setValor] = useState("");
-  return (
-    <main className="panel">
-      <form
-        className="tarjeta acceso"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (valor.trim()) onEntrar(valor.trim());
-        }}
-      >
-        <Logo />
-        <h1>Panel de turnos</h1>
-        <p>Ingresá tu PIN para ver los pedidos.</p>
-        <label htmlFor="pin" className="sr-only">
-          PIN
-        </label>
-        <input
-          id="pin"
-          className="input"
-          type="password"
-          inputMode="numeric"
-          autoComplete="current-password"
-          autoFocus
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          placeholder="••••••"
-        />
-        <button className="btn btn-primario" type="submit" disabled={!valor.trim()}>
-          <LockKeyhole /> Entrar
-        </button>
-        {error && <p className="error">{error}</p>}
-      </form>
-    </main>
-  );
-}
-
-function Lista({
-  solicitudes,
-  onEstado,
-  onBorrar,
-  onRecargar,
-}: {
-  solicitudes: Solicitud[];
-  onEstado: (s: Solicitud, e: Estado) => void;
-  onBorrar: (s: Solicitud) => void;
-  onRecargar: () => void;
-}) {
-  const [filtro, setFiltro] = useState<Filtro>("pendiente");
-  const [busqueda, setBusqueda] = useState("");
-
   const cuentas = useMemo(() => {
-    const c: Record<Filtro, number> = { pendiente: 0, confirmado: 0, cancelado: 0, todos: solicitudes.length };
-    solicitudes.forEach((s) => c[s.estado]++);
+    const c: Record<Filtro, number> = { pendiente: 0, confirmado: 0, cancelado: 0, todos: solicitudes?.length ?? 0 };
+    solicitudes?.forEach((s) => c[s.estado]++);
     return c;
   }, [solicitudes]);
 
   const grupos = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    const filtradas = solicitudes.filter(
+    const filtradas = (solicitudes ?? []).filter(
       (s) =>
         (filtro === "todos" || s.estado === filtro) &&
         (!q || [s.nombre, s.telefono, s.id, ...s.items, s.otraZona].join(" ").toLowerCase().includes(q)),
@@ -238,10 +111,10 @@ function Lista({
     <>
       <div className="panel-cabecera">
         <div>
-          <span className="eyebrow">Panel de {NEGOCIO.profesional}</span>
+          <span className="eyebrow">Tu agenda</span>
           <h1>Pedidos de turno</h1>
         </div>
-        <button type="button" className="btn btn-borde btn-sm" onClick={onRecargar}>
+        <button type="button" className="btn btn-borde btn-sm" onClick={() => cargar(true)}>
           <RefreshCw /> Actualizar
         </button>
       </div>
@@ -266,7 +139,22 @@ function Lista({
         </div>
       </div>
 
-      {grupos.length === 0 ? (
+      {error ? (
+        <div className="vacio">
+          <Ramita />
+          <strong>Sin conexión</strong>
+          <p>{error}</p>
+          <button type="button" className="btn btn-borde btn-sm" style={{ marginTop: "var(--s-4)" }} onClick={() => cargar()}>
+            <RefreshCw /> Reintentar
+          </button>
+        </div>
+      ) : !solicitudes ? (
+        <div className="solicitudes">
+          <div className="esqueleto" />
+          <div className="esqueleto" />
+          <div className="esqueleto" />
+        </div>
+      ) : grupos.length === 0 ? (
         <div className="vacio">
           <Ramita />
           <strong>{solicitudes.length === 0 ? "Todavía no hay pedidos" : "Nada por acá"}</strong>
@@ -284,7 +172,7 @@ function Lista({
             </h2>
             <div className="solicitudes">
               {lista.map((s) => (
-                <Tarjeta key={s.id} s={s} onEstado={onEstado} onBorrar={onBorrar} />
+                <Tarjeta key={s.id} s={s} onEstado={cambiarEstado} onBorrar={borrar} />
               ))}
             </div>
           </section>
@@ -298,7 +186,7 @@ function soloDigitos(tel: string) {
   let d = tel.replace(/\D/g, "");
   if (d.startsWith("0")) d = d.slice(1);
   if (d.startsWith("54")) return d;
-  // número local de Entre Ríos/AR sin código de país: se le agrega 54 9
+  // número argentino sin código de país: se le agrega 54 9 y se saca el 15
   return `549${d.replace(/^(\d{2,4})15/, "$1")}`;
 }
 
@@ -317,7 +205,11 @@ function Tarjeta({
     hour: "2-digit",
     minute: "2-digit",
   });
-  const detalle = [s.combo ? `${s.combo}: ` : "", s.items.join(", "), s.otraZona ? `${s.items.length ? " · " : ""}${s.otraZona}` : ""].join("");
+  const detalle = [
+    s.combo ? `${s.combo}: ` : "",
+    s.items.join(", "),
+    s.otraZona ? `${s.items.length ? " · " : ""}${s.otraZona}` : "",
+  ].join("");
   const etiquetaEstado = { pendiente: "Pendiente", confirmado: "Confirmado", cancelado: "Cancelado" }[s.estado];
   const respuesta = `¡Hola ${s.nombre.split(" ")[0]}! Te escribo por tu pedido de turno #${s.id}. `;
 
@@ -361,12 +253,7 @@ function Tarjeta({
           </button>
         )}
         {s.telefono && (
-          <a
-            className="btn btn-sm btn-borde"
-            href={linkWhatsApp(respuesta, soloDigitos(s.telefono))}
-            target="_blank"
-            rel="noopener"
-          >
+          <a className="btn btn-sm btn-borde" href={linkWhatsApp(respuesta, soloDigitos(s.telefono))} target="_blank" rel="noopener">
             <IconoWhatsApp /> Escribirle
           </a>
         )}

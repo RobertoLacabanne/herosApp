@@ -7,8 +7,10 @@
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node", "vite/client"],
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "include": ["src", "netlify/functions"]
+  "include": ["src", "netlify/functions", "netlify/lib"]
 }

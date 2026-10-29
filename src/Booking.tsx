@@ -13,13 +13,10 @@ import {
   Sunset,
 } from "lucide-react";
 import {
-  DIAS_A_MOSTRAR,
-  DIAS_DE_ATENCION,
   FRANJAS,
   NEGOCIO,
   SERVICIOS,
-  TRATAMIENTOS_FACIALES,
-  ZONAS,
+  type Catalogo,
   type FranjaId,
   type Publico,
   type ServicioId,
@@ -39,6 +36,7 @@ import {
   type Pedido,
   type Solicitud,
 } from "./turno";
+import { useCatalogo } from "./useCatalogo";
 
 const PASOS = ["Servicio", "Detalle", "Día", "Tus datos"];
 
@@ -47,10 +45,11 @@ export function Booking() {
   const [pedido, setPedido] = useState<Pedido>(pedidoVacio);
   const [codigo, setCodigo] = useState(codigoNuevo);
   const [enviado, setEnviado] = useState<Solicitud | null>(null);
+  const cat = useCatalogo();
 
   const set = (cambios: Partial<Pedido>) => setPedido((p) => ({ ...p, ...cambios }));
 
-  const borrador = aBorrador(pedido, paso === 3 ? codigo : "");
+  const borrador = aBorrador(pedido, paso === 3 ? codigo : "", cat);
   const mensaje = pedido.servicio ? mensajeWhatsApp(borrador) : "";
   const listo = pedidoListo(pedido);
 
@@ -69,7 +68,7 @@ export function Booking() {
   ][paso];
 
   function enviar() {
-    const solicitud = aSolicitud(pedido, codigo);
+    const solicitud = aSolicitud(pedido, codigo, cat);
     fetch("/api/turnos", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -164,6 +163,7 @@ export function Booking() {
               <div className="pasos-cuerpo" key={paso}>
                 {paso === 0 && (
                   <PasoServicio
+                    cat={cat}
                     valor={pedido.servicio}
                     onElegir={(servicio) => {
                       if (servicio !== pedido.servicio) set({ servicio, items: [], otraZona: "" });
@@ -171,8 +171,8 @@ export function Booking() {
                     }}
                   />
                 )}
-                {paso === 1 && <PasoDetalle pedido={pedido} set={set} />}
-                {paso === 2 && <PasoDia pedido={pedido} set={set} />}
+                {paso === 1 && <PasoDetalle cat={cat} pedido={pedido} set={set} />}
+                {paso === 2 && <PasoDia cat={cat} pedido={pedido} set={set} />}
                 {paso === 3 && <PasoDatos pedido={pedido} set={set} mensaje={mensaje} />}
               </div>
 
@@ -236,7 +236,15 @@ function Cabecera({ titulo, bajada }: { titulo: string; bajada: string }) {
 
 /* ───────────── Paso 1 ───────────── */
 
-function PasoServicio({ valor, onElegir }: { valor: ServicioId | null; onElegir: (s: ServicioId) => void }) {
+function PasoServicio({
+  cat,
+  valor,
+  onElegir,
+}: {
+  cat: Catalogo;
+  valor: ServicioId | null;
+  onElegir: (s: ServicioId) => void;
+}) {
   const ilus: Record<ServicioId, ReactNode> = {
     laser: <IlusLaser className="opcion-ilus" />,
     facial: <IlusFacial className="opcion-ilus" />,
@@ -250,7 +258,7 @@ function PasoServicio({ valor, onElegir }: { valor: ServicioId | null; onElegir:
             <span className="opcion-titulo">{SERVICIOS[id].titulo}</span>
             <span className="opcion-bajada">{SERVICIOS[id].bajada}</span>
             <span className="chip-dato">
-              <Clock /> {SERVICIOS[id].duracion}
+              <Clock /> {cat.duraciones[id]}
             </span>
           </span>
           <span className="check">
@@ -266,9 +274,9 @@ function PasoServicio({ valor, onElegir }: { valor: ServicioId | null; onElegir:
 
 type SetPedido = (c: Partial<Pedido>) => void;
 
-function PasoDetalle({ pedido, set }: { pedido: Pedido; set: SetPedido }) {
-  const combos = combosDe(pedido);
-  const combo = comboElegido(pedido);
+function PasoDetalle({ cat, pedido, set }: { cat: Catalogo; pedido: Pedido; set: SetPedido }) {
+  const combos = combosDe(pedido, cat);
+  const combo = comboElegido(pedido, cat);
   const esLaser = pedido.servicio === "laser";
 
   const alternar = (item: string) =>
@@ -301,6 +309,7 @@ function PasoDetalle({ pedido, set }: { pedido: Pedido; set: SetPedido }) {
         </div>
       )}
 
+      {combos.length > 0 && (
       <div className="seccion">
         <h3 className="seccion-titulo">
           Combos <small>Tocá uno para elegirlo</small>
@@ -322,14 +331,18 @@ function PasoDetalle({ pedido, set }: { pedido: Pedido; set: SetPedido }) {
           ))}
         </div>
       </div>
+      )}
 
       <div className="seccion">
         <h3 className="seccion-titulo">
-          {esLaser ? "O armá tu combinación" : "O elegí los tratamientos"} <small>Podés elegir varios</small>
+          {esLaser
+            ? combos.length ? "O armá tu combinación" : "Zonas"
+            : combos.length ? "O elegí los tratamientos" : "Tratamientos"}{" "}
+          <small>Podés elegir varios</small>
         </h3>
         {esLaser ? (
           <div className="chips">
-            {ZONAS[pedido.publico].map((z) => {
+            {cat.zonas[pedido.publico].map((z) => {
               const activo = pedido.items.includes(z);
               return (
                 <button key={z} type="button" className="chip" aria-pressed={activo} onClick={() => alternar(z)}>
@@ -341,7 +354,7 @@ function PasoDetalle({ pedido, set }: { pedido: Pedido; set: SetPedido }) {
           </div>
         ) : (
           <div className="lista">
-            {TRATAMIENTOS_FACIALES.map((t) => (
+            {cat.tratamientos.map((t) => (
               <button
                 key={t.nombre}
                 type="button"
@@ -397,8 +410,8 @@ const ICONO_FRANJA: Record<FranjaId, ReactNode> = {
   indistinto: <CalendarHeart />,
 };
 
-function PasoDia({ pedido, set }: { pedido: Pedido; set: SetPedido }) {
-  const columnas = [...DIAS_DE_ATENCION].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+function PasoDia({ cat, pedido, set }: { cat: Catalogo; pedido: Pedido; set: SetPedido }) {
+  const columnas = [...cat.diasAtencion].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
 
   const { semanas, rango } = useMemo(() => {
     const hoy = new Date();
@@ -406,7 +419,7 @@ function PasoDia({ pedido, set }: { pedido: Pedido; set: SetPedido }) {
     const primero = new Date(hoy);
     primero.setDate(hoy.getDate() + 1);
     const ultimo = new Date(hoy);
-    ultimo.setDate(hoy.getDate() + DIAS_A_MOSTRAR);
+    ultimo.setDate(hoy.getDate() + cat.diasAMostrar);
 
     // arranca el lunes de la semana del primer día disponible
     const cursor = new Date(primero);
@@ -416,7 +429,10 @@ function PasoDia({ pedido, set }: { pedido: Pedido; set: SetPedido }) {
       const semana: { fecha: Date; habil: boolean }[] = [];
       for (let i = 0; i < 7; i++) {
         const d = new Date(cursor);
-        if (columnas.includes(d.getDay())) semana.push({ fecha: d, habil: d >= primero && d <= ultimo });
+        if (columnas.includes(d.getDay())) {
+          const libre = !cat.diasBloqueados.includes(isoDe(d));
+          semana.push({ fecha: d, habil: libre && d >= primero && d <= ultimo });
+        }
         cursor.setDate(cursor.getDate() + 1);
       }
       semanas.push(semana);
@@ -425,7 +441,7 @@ function PasoDia({ pedido, set }: { pedido: Pedido; set: SetPedido }) {
     const rango = mes(primero) === mes(ultimo) ? mes(primero) : `${mes(primero)} – ${mes(ultimo)}`;
     return { semanas, rango };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cat]);
 
   return (
     <>
