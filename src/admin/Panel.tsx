@@ -13,7 +13,7 @@ import { Servicios } from "./Servicios";
 type Pestana = "pedidos" | "servicios" | "agenda" | "cuenta";
 
 const PESTANAS: { id: Pestana; nombre: string; icono: ReactNode }[] = [
-  { id: "pedidos", nombre: "Pedidos", icono: <Inbox /> },
+  { id: "pedidos", nombre: "Turnos", icono: <Inbox /> },
   { id: "servicios", nombre: "Servicios", icono: <Sparkles /> },
   { id: "agenda", nombre: "Agenda", icono: <CalendarDays /> },
   { id: "cuenta", nombre: "Cuenta", icono: <UserRound /> },
@@ -136,7 +136,7 @@ function Admin({ usuario, onSalir }: { usuario: string; onSalir: () => void }) {
 
       <main className="panel">
         <div hidden={pestana !== "pedidos"}>
-          <Pedidos onAviso={onAviso} onSinSesion={onSalir} onPendientes={setPendientes} />
+          <Pedidos cat={original} onAviso={onAviso} onSinSesion={onSalir} onPendientes={setPendientes} />
         </div>
         {(pestana === "servicios" || pestana === "agenda") && catalogoListo !== true && (
           <EsperandoCatalogo fallo={catalogoListo === false} onReintentar={cargarCatalogo} />

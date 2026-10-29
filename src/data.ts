@@ -1,6 +1,8 @@
 // Datos fijos del negocio y catálogo inicial. El catálogo vigente lo edita la profesional
 // desde /panel y se guarda en Netlify Blobs; esto es solo el punto de partida.
 
+import { limpiarTramos } from "./horarios";
+
 export const NEGOCIO = {
   nombre: "ERHOS Estética",
   profesional: "Rocío",
@@ -24,15 +26,21 @@ export interface Tratamiento {
   detalle: string;
 }
 
+export interface Tramo {
+  desde: string; // HH:MM
+  hasta: string;
+}
+
 export interface Catalogo {
-  duraciones: Record<ServicioId, string>;
+  duracionMin: Record<ServicioId, number>;
   zonas: Record<Publico, string[]>;
   combosLaser: Record<Publico, Combo[]>;
   tratamientos: Tratamiento[];
   combosFaciales: Combo[];
-  diasAtencion: number[]; // 0 = domingo … 6 = sábado
+  semana: Tramo[][]; // índice 0 = domingo … 6 = sábado; vacío = no atiende
+  excepciones: Record<string, Tramo[]>; // AAAA-MM-DD → horario de ese día; [] = no atiende
   diasAMostrar: number;
-  diasBloqueados: string[]; // AAAA-MM-DD
+  horariosRevisados: boolean; // false mientras sigan los horarios de ejemplo
 }
 
 export const SERVICIOS: Record<ServicioId, { titulo: string; bajada: string }> = {
@@ -46,11 +54,14 @@ export const SERVICIOS: Record<ServicioId, { titulo: string; bajada: string }> =
   },
 };
 
+// Horario de ejemplo hasta que la profesional cargue el suyo (el panel le avisa que lo revise).
+const MANANA_Y_TARDE: Tramo[] = [
+  { desde: "09:00", hasta: "13:00" },
+  { desde: "16:00", hasta: "20:00" },
+];
+
 export const CATALOGO_INICIAL: Catalogo = {
-  duraciones: {
-    laser: "30 min aprox.",
-    facial: "1 h 30 aprox.",
-  },
+  duracionMin: { laser: 30, facial: 90 },
   zonas: {
     ella: ["Rostro completo", "Axilas", "Cavado completo", "Tiro de cola", "Media pierna", "Pierna completa"],
     el: [
@@ -90,15 +101,19 @@ export const CATALOGO_INICIAL: Catalogo = {
     { id: "f-2", nombre: "Combo 2", items: ["Limpieza facial", "Dermaplaning"] },
     { id: "f-3", nombre: "Combo 3", items: ["Limpieza facial", "Dermaplaning", "Peeling químico"] },
   ],
-  diasAtencion: [1, 2, 3, 4, 5, 6],
+  semana: [[], MANANA_Y_TARDE, MANANA_Y_TARDE, MANANA_Y_TARDE, MANANA_Y_TARDE, MANANA_Y_TARDE, [MANANA_Y_TARDE[0]]],
+  excepciones: {},
   diasAMostrar: 21,
-  diasBloqueados: [],
+  horariosRevisados: false,
 };
 
+export const DURACIONES_POSIBLES = [15, 30, 45, 60, 75, 90, 120];
+
+// Pedidos viejos (antes de los horarios) guardaban una franja en vez de una hora.
 export const FRANJAS = [
-  { id: "manana", nombre: "Mañana", detalle: "Antes del mediodía" },
-  { id: "tarde", nombre: "Tarde", detalle: "Después del mediodía" },
-  { id: "indistinto", nombre: "Me da igual", detalle: "Lo que tengas libre" },
+  { id: "manana", nombre: "Mañana" },
+  { id: "tarde", nombre: "Tarde" },
+  { id: "indistinto", nombre: "Me da igual" },
 ] as const;
 
 export type FranjaId = (typeof FRANJAS)[number]["id"];
@@ -123,7 +138,37 @@ export function normalizarCatalogo(entrada: unknown): Catalogo {
           .slice(0, 12)
       : null;
 
-  const d = (c.duraciones ?? {}) as Record<string, unknown>;
+  const d = (c.duracionMin ?? {}) as Record<string, unknown>;
+  const duracion = (v: unknown, base: number) => (DURACIONES_POSIBLES.includes(Number(v)) ? Number(v) : base);
+  const tramos = (v: unknown): Tramo[] =>
+    Array.isArray(v)
+      ? limpiarTramos(
+          v.map((t) => {
+            const o = (t ?? {}) as Record<string, unknown>;
+            return { desde: texto(o.desde, 5), hasta: texto(o.hasta, 5) };
+          }),
+        )
+      : [];
+  const viejo = entrada as { diasAtencion?: unknown; diasBloqueados?: unknown } | null;
+
+  // Semana: la nueva forma, o la migración desde "días de atención" con el horario de ejemplo.
+  let semana: Tramo[][];
+  if (Array.isArray(c.semana) && c.semana.length === 7) semana = c.semana.map(tramos);
+  else if (Array.isArray(viejo?.diasAtencion)) {
+    const dias = viejo.diasAtencion as unknown[];
+    semana = base.semana.map((t, i) => (dias.includes(i) ? (t.length ? t : MANANA_Y_TARDE) : []));
+  } else semana = base.semana;
+
+  const excepciones: Record<string, Tramo[]> = {};
+  const fechaOk = (k: string) => /^\d{4}-\d{2}-\d{2}$/.test(k);
+  if (c.excepciones && typeof c.excepciones === "object") {
+    for (const [k, v] of Object.entries(c.excepciones as Record<string, unknown>).slice(0, 300)) {
+      if (fechaOk(k)) excepciones[k] = tramos(v);
+    }
+  }
+  if (Array.isArray(viejo?.diasBloqueados)) {
+    for (const k of viejo.diasBloqueados as unknown[]) if (typeof k === "string" && fechaOk(k)) excepciones[k] ??= [];
+  }
   const z = (c.zonas ?? {}) as Record<string, unknown>;
   const cl = (c.combosLaser ?? {}) as Record<string, unknown>;
 
@@ -139,13 +184,10 @@ export function normalizarCatalogo(entrada: unknown): Catalogo {
     : base.tratamientos;
   const nombresTrat = tratamientos.map((t) => t.nombre);
 
-  const dias = Array.isArray(c.diasAtencion)
-    ? [...new Set(c.diasAtencion.filter((x): x is number => Number.isInteger(x) && x >= 0 && x <= 6))]
-    : base.diasAtencion;
   const mostrar = Number(c.diasAMostrar);
 
   return {
-    duraciones: { laser: texto(d.laser, 30) || base.duraciones.laser, facial: texto(d.facial, 30) || base.duraciones.facial },
+    duracionMin: { laser: duracion(d.laser, base.duracionMin.laser), facial: duracion(d.facial, base.duracionMin.facial) },
     zonas,
     combosLaser: {
       ella: combos(cl.ella, zonas.ella) ?? base.combosLaser.ella,
@@ -153,12 +195,9 @@ export function normalizarCatalogo(entrada: unknown): Catalogo {
     },
     tratamientos,
     combosFaciales: combos(c.combosFaciales, nombresTrat) ?? base.combosFaciales,
-    diasAtencion: dias.length ? dias.sort() : base.diasAtencion,
+    semana,
+    excepciones,
     diasAMostrar: Number.isInteger(mostrar) && mostrar >= 7 && mostrar <= 90 ? mostrar : base.diasAMostrar,
-    diasBloqueados: Array.isArray(c.diasBloqueados)
-      ? [...new Set(c.diasBloqueados.filter((x): x is string => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x)))]
-          .sort()
-          .slice(0, 200)
-      : base.diasBloqueados,
+    horariosRevisados: c.horariosRevisados === true,
   };
 }

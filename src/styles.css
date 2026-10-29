@@ -122,7 +122,10 @@ button {
 .panel-cabecera h1,
 .grupo-titulo,
 .vacio strong,
-.acceso h1 {
+.acceso h1,
+.horas-dia,
+.listo-cuando,
+.especial-dato strong {
   font-variant-numeric: lining-nums;
 }
 .sr-only {
@@ -2091,5 +2094,581 @@ textarea.input {
   .ed-agregar-fila .btn {
     width: 48px;
     padding: 0;
+  }
+}
+
+/* ═════════════ Horarios (página pública) ═════════════ */
+.aviso-error {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  margin: 0 0 var(--s-5);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--peligro-bg);
+  color: var(--peligro);
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+.aviso-error svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+.dia-completo:disabled {
+  color: var(--texto-tenue);
+  background: repeating-linear-gradient(-45deg, transparent 0 5px, rgb(217 202 189 / 0.35) 5px 6px);
+  border-color: var(--borde);
+}
+.leyenda {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  font-size: var(--t-xs);
+  color: var(--texto-tenue);
+}
+.leyenda-punto {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--borde);
+  background: repeating-linear-gradient(-45deg, transparent 0 3px, rgb(217 202 189 / 0.6) 3px 4px);
+}
+.horas-dia {
+  margin: 0 0 var(--s-3);
+  font-family: var(--f-display);
+  font-size: var(--t-md);
+  font-weight: 600;
+  color: var(--cobre-700);
+}
+.horas-grupo + .horas-grupo {
+  margin-top: var(--s-4);
+}
+.horas-titulo {
+  display: block;
+  margin-bottom: var(--s-2);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto-tenue);
+}
+.horas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: var(--s-2);
+}
+.hora {
+  height: 44px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--borde-fuerte);
+  background: var(--superficie);
+  font-size: var(--t-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ciruela-800);
+  transition: all var(--dur) var(--ease);
+}
+.hora:hover {
+  border-color: var(--ciruela-500);
+  background: var(--ciruela-50);
+}
+.hora[aria-checked="true"] {
+  background: var(--ciruela-700);
+  border-color: var(--ciruela-700);
+  color: #fff;
+  box-shadow: 0 6px 14px -6px rgb(78 44 92 / 0.6);
+}
+.hora-esqueleto {
+  height: 44px;
+  border-radius: var(--r-md);
+  background: linear-gradient(90deg, var(--superficie-2) 0%, var(--borde) 50%, var(--superficie-2) 100%);
+  background-size: 200% 100%;
+  animation: brillo 1.2s linear infinite;
+}
+.horas-vacio {
+  margin: 0;
+  padding: var(--s-4);
+  border: 1px dashed var(--borde-fuerte);
+  border-radius: var(--r-md);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  text-align: center;
+}
+.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--ciruela-700);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.listo-cuando {
+  margin: calc(var(--s-1) * -1) 0 var(--s-4) !important;
+  font-family: var(--f-display);
+  font-size: var(--t-lg);
+  font-weight: 600;
+  color: var(--cobre-700) !important;
+}
+
+/* ═════════════ Panel: horarios ═════════════ */
+/* Hoja (dialog nativo) */
+dialog.hoja {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(86dvh, 760px);
+  padding: 0;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-xl);
+  background: var(--superficie);
+  color: var(--texto);
+  box-shadow: var(--sombra-3);
+}
+dialog.hoja[open] {
+  display: flex;
+  flex-direction: column;
+}
+dialog.hoja:modal {
+  overscroll-behavior: contain;
+}
+dialog.hoja::backdrop {
+  background: rgb(47 26 57 / 0.38);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.hoja-cabeza {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-5) var(--s-5) var(--s-3) var(--s-6);
+}
+.hoja-cabeza h2 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ciruela-800);
+  font-variant-numeric: lining-nums;
+}
+.hoja-cabeza p {
+  margin: var(--s-1) 0 0;
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+}
+.hoja-cuerpo {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-2) var(--s-6) var(--s-6);
+}
+.hoja-pie {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-5) calc(var(--s-3) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--borde);
+  background: var(--superficie-2);
+}
+.hoja .campo + .campo,
+.hoja .campo-fila,
+.hoja .campo-fila + .campo {
+  margin-top: var(--s-4);
+}
+.campo-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+.campo-fila .campo + .campo {
+  margin-top: 0 !important;
+}
+
+/* Semana */
+.semana {
+  display: grid;
+  gap: var(--s-2);
+}
+.semana-dia {
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-md);
+  background: var(--superficie-2);
+}
+.semana-cerrado {
+  background: transparent;
+  border-style: dashed;
+}
+.semana-cerrado strong {
+  color: var(--texto-tenue);
+}
+.semana-cabeza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 32px;
+}
+.semana-cabeza strong {
+  font-weight: 600;
+}
+.interruptor {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--t-sm);
+  color: var(--texto-suave);
+  cursor: pointer;
+  user-select: none;
+}
+.interruptor input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.interruptor span {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  background: var(--borde-fuerte);
+  transition: background var(--dur) var(--ease);
+}
+.interruptor span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-pill);
+  background: #fff;
+  box-shadow: var(--sombra-1);
+  transition: transform var(--dur) var(--ease);
+}
+.interruptor input:checked + span {
+  background: var(--ciruela-700);
+}
+.interruptor input:checked + span::after {
+  transform: translateX(16px);
+}
+.interruptor input:focus-visible + span {
+  box-shadow: var(--anillo);
+}
+.tramos {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+.tramo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.input-hora {
+  width: 104px;
+  height: 42px;
+  padding: 0 32px 0 var(--s-3);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  appearance: none;
+  background: var(--superficie)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237b5a89' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    no-repeat right 12px center;
+  cursor: pointer;
+}
+.campo .input-hora {
+  width: 100%;
+  height: 48px;
+}
+.tramo-a {
+  color: var(--texto-tenue);
+  font-size: var(--t-sm);
+}
+.tramo-mal .input-hora {
+  border-color: var(--peligro);
+}
+.tramo-aviso {
+  flex-basis: 100%;
+  font-size: var(--t-xs);
+  color: var(--peligro);
+}
+.tramo-agregar {
+  justify-self: start;
+  color: var(--ciruela-700);
+  padding: 0 var(--s-2);
+}
+.link-chico {
+  display: inline-flex;
+  text-align: left;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--s-3);
+  font-size: var(--t-xs);
+  text-decoration: none;
+}
+.link-chico svg {
+  width: 13px;
+  height: 13px;
+}
+.link-chico:hover {
+  text-decoration: underline;
+}
+
+.aviso-revisar {
+  display: flex;
+  gap: var(--s-3);
+  margin-bottom: var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--alerta-bg);
+  color: var(--alerta);
+}
+.aviso-revisar > svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+.aviso-revisar p {
+  margin: 2px 0 var(--s-3);
+  font-size: var(--t-sm);
+}
+
+/* Calendario de días especiales */
+.dia-especial {
+  border-color: var(--cobre-500) !important;
+  background: var(--cobre-100) !important;
+  color: var(--cobre-700) !important;
+}
+.dia-libre:not(:disabled) {
+  border-style: dashed;
+  color: var(--texto-tenue);
+  background: transparent;
+}
+.leyendas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
+  margin-top: var(--s-3);
+  font-size: var(--t-xs);
+  color: var(--texto-tenue);
+}
+.leyendas span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ley {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.ley-cerrado {
+  background: var(--peligro-bg);
+}
+.ley-especial {
+  background: var(--cobre-100);
+  border: 1px solid var(--cobre-500);
+}
+.ley-libre {
+  border: 1px dashed var(--borde-fuerte);
+}
+.especiales {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.especiales li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-1) var(--s-1) var(--s-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-md);
+}
+.especial-dato {
+  flex: 1;
+  display: grid;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: var(--s-2) 0;
+}
+.especial-dato strong {
+  font-weight: 600;
+  font-size: var(--t-sm);
+}
+.especial-dato span {
+  font-size: var(--t-xs);
+  color: var(--texto-suave);
+}
+.texto-peligro {
+  color: var(--peligro) !important;
+}
+.opciones-dia {
+  display: grid;
+  gap: var(--s-2);
+}
+.opcion-dia {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1.5px solid var(--borde);
+  border-radius: var(--r-md);
+  background: var(--superficie);
+  text-align: left;
+  transition: all var(--dur) var(--ease);
+}
+.opcion-dia span:last-child {
+  display: grid;
+}
+.opcion-dia strong {
+  font-weight: 600;
+}
+.opcion-dia small {
+  font-size: var(--t-xs);
+  color: var(--texto-suave);
+}
+.opcion-dia[aria-checked="true"] {
+  border-color: var(--ciruela-700);
+  background: var(--ciruela-50);
+}
+.radio {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--borde-fuerte);
+  transition: all var(--dur) var(--ease);
+}
+[aria-checked="true"] > .radio {
+  border: 6px solid var(--ciruela-700);
+}
+
+/* Turnos */
+.cabecera-acciones {
+  display: flex;
+  gap: var(--s-2);
+}
+.solicitud {
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+}
+.sol-hora {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  padding-right: var(--s-2);
+  border-right: 1px solid var(--borde);
+}
+.sol-hora strong {
+  font-family: var(--f-display);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ciruela-800);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.sol-hora span {
+  margin-top: 4px;
+  font-size: var(--t-xs);
+  color: var(--texto-tenue);
+}
+.et-manual {
+  background: var(--ciruela-100);
+  color: var(--ciruela-700);
+}
+.grupo-fecha {
+  font-family: var(--f-ui);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--texto-suave);
+}
+.horas-chicas {
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+}
+.horas-chicas .hora {
+  height: 36px;
+  font-size: var(--t-sm);
+}
+.aviso-suave {
+  display: flex;
+  gap: var(--s-2);
+  align-items: flex-start;
+  margin: var(--s-4) 0 0;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--alerta-bg);
+  color: var(--alerta);
+  font-size: var(--t-sm);
+}
+.aviso-suave svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+@media (max-width: 720px) {
+  dialog.hoja {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    margin: auto 0 0;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    border-bottom: 0;
+  }
+  .hoja-cabeza {
+    padding: var(--s-5) var(--s-4) var(--s-2) var(--s-5);
+  }
+  .hoja-cuerpo {
+    padding: var(--s-2) var(--s-5) var(--s-5);
+  }
+  .hoja-pie .btn {
+    flex: 1;
+  }
+  .solicitud {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .sol-hora strong {
+    font-size: 22px;
+  }
+  .sol-acciones {
+    grid-column: 1 / -1;
+  }
+  .btn-icono-movil span {
+    display: none;
+  }
+  .btn-icono-movil {
+    width: 36px;
+    padding: 0;
+  }
+  .panel-cabecera {
+    align-items: center;
+  }
+  .input-hora {
+    width: 96px;
+  }
+  .semana-dia {
+    padding: var(--s-3);
+  }
+}
+
+@media (min-width: 721px) {
+  .cal-admin,
+  .leyendas {
+    max-width: 520px;
+  }
+  .semana {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    align-items: start;
   }
 }

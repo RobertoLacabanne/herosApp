@@ -1,26 +1,17 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { ArrowRight, AtSign, CalendarCheck, Check, ChevronLeft, CircleAlert, Clock, Info, MapPin, RotateCcw } from "lucide-react";
+import { NEGOCIO, SERVICIOS, type Catalogo, type Publico, type ServicioId } from "./data";
 import {
-  ArrowRight,
-  AtSign,
-  CalendarHeart,
-  Check,
-  ChevronLeft,
-  Clock,
-  Info,
-  MapPin,
-  RotateCcw,
-  Sunrise,
-  Sunset,
-} from "lucide-react";
-import {
-  FRANJAS,
-  NEGOCIO,
-  SERVICIOS,
-  type Catalogo,
-  type FranjaId,
-  type Publico,
-  type ServicioId,
-} from "./data";
+  ahoraEnParana,
+  aMin,
+  diaDeSemana,
+  fechasOfrecidas,
+  formatoDuracion,
+  sumarDias,
+  tramosDe,
+  turnosLibres,
+  type Intervalo,
+} from "./horarios";
 import { IconoWhatsApp, IlusFacial, IlusLaser, Logo } from "./icons";
 import {
   aBorrador,
@@ -28,9 +19,10 @@ import {
   codigoNuevo,
   comboElegido,
   combosDe,
-  isoDe,
+  fechaLarga,
   linkWhatsApp,
   mensajeWhatsApp,
+  parseFecha,
   pedidoListo,
   pedidoVacio,
   type Pedido,
@@ -38,13 +30,19 @@ import {
 } from "./turno";
 import { useCatalogo } from "./useCatalogo";
 
-const PASOS = ["Servicio", "Detalle", "Día", "Tus datos"];
+const PASOS = ["Servicio", "Detalle", "Día y hora", "Tus datos"];
+
+type Ocupados = Record<string, Intervalo[]>;
 
 export function Booking() {
   const [paso, setPaso] = useState(0);
   const [pedido, setPedido] = useState<Pedido>(pedidoVacio);
   const [codigo, setCodigo] = useState(codigoNuevo);
   const [enviado, setEnviado] = useState<Solicitud | null>(null);
+  const [reservando, setReservando] = useState(false);
+  const [error, setError] = useState("");
+  const [ocupados, setOcupados] = useState<Ocupados | null>(null);
+  const [falloOcupados, setFalloOcupados] = useState(false);
   const cat = useCatalogo();
 
   const set = (cambios: Partial<Pedido>) => setPedido((p) => ({ ...p, ...cambios }));
@@ -53,10 +51,24 @@ export function Booking() {
   const mensaje = pedido.servicio ? mensajeWhatsApp(borrador) : "";
   const listo = pedidoListo(pedido);
 
+  const cargarOcupados = useCallback(() => {
+    const { hoy } = ahoraEnParana();
+    setFalloOcupados(false);
+    fetch(`/api/ocupados?desde=${hoy}&hasta=${sumarDias(hoy, cat.diasAMostrar)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((r) => setOcupados(r.ocupados))
+      .catch(() => setFalloOcupados(true));
+  }, [cat.diasAMostrar]);
+
+  // Cada vez que se entra al paso del día se actualiza qué horarios están tomados.
+  useEffect(() => {
+    if (paso === 2) cargarOcupados();
+  }, [paso, cargarOcupados]);
+
   const puedeSeguir = [
     !!pedido.servicio,
     pedido.items.length > 0 || pedido.otraZona.trim().length > 0,
-    !!pedido.fecha && !!pedido.franja,
+    !!pedido.fecha && !!pedido.hora,
     listo,
   ][paso];
 
@@ -67,24 +79,38 @@ export function Booking() {
     "Contanos tu nombre",
   ][paso];
 
-  function enviar() {
+  async function reservar() {
+    setReservando(true);
+    setError("");
     const solicitud = aSolicitud(pedido, codigo, cat);
-    fetch("/api/turnos", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(solicitud),
-      keepalive: true,
-    }).catch(() => {
-      /* el pedido igual viaja por WhatsApp */
-    });
-    setEnviado(solicitud);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    try {
+      const res = await fetch("/api/turnos", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(solicitud),
+      });
+      const datos = await res.json().catch(() => ({}));
+      if (res.status === 409 && datos.codigo === "ocupado") {
+        set({ hora: null });
+        setError(datos.error);
+        irA(2);
+        return;
+      }
+      if (!res.ok) throw new Error();
+      setEnviado(solicitud);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      setError("No pudimos guardar el turno. Revisá tu conexión y probá de nuevo.");
+    } finally {
+      setReservando(false);
+    }
   }
 
   function reiniciar() {
     setPedido(pedidoVacio);
     setCodigo(codigoNuevo());
     setEnviado(null);
+    setError("");
     setPaso(0);
   }
 
@@ -97,7 +123,7 @@ export function Booking() {
     <>
       <header className="barra">
         <Logo />
-        <a className="barra-link" href={linkWhatsApp("¡Hola Rocío! Tengo una consulta.")} target="_blank" rel="noopener">
+        <a className="barra-link" href={linkWhatsApp(`¡Hola ${NEGOCIO.profesional}! Tengo una consulta.`)} target="_blank" rel="noopener">
           <IconoWhatsApp />
           <span>¿Dudas? Escribime</span>
         </a>
@@ -109,18 +135,18 @@ export function Booking() {
           <h1 className="titular">
             Tu turno,
             <br />
-            <em>en un mensaje.</em>
+            <em>en un minuto.</em>
           </h1>
           <p className="intro">
-            Elegí el tratamiento y el día que te queda cómodo. Te armamos el pedido para que se lo
-            mandes a {NEGOCIO.profesional} por WhatsApp y te confirme el horario.
+            Elegí el tratamiento, el día y el horario libre que te quede cómodo. Reservás desde acá, sin descargar
+            nada, y le avisás a {NEGOCIO.profesional} por WhatsApp.
           </p>
           <ul className="datos-local">
             <li>
               <MapPin /> {NEGOCIO.direccion.replace(", Entre Ríos", "")}
             </li>
             <li>
-              <Clock /> Láser 30 min · Facial 1 h 30
+              <Clock /> Láser {formatoDuracion(cat.duracionMin.laser)} · Facial {formatoDuracion(cat.duracionMin.facial)}
             </li>
             <li>
               <AtSign /> {NEGOCIO.instagram}
@@ -156,23 +182,40 @@ export function Booking() {
                 {paso === 1 && pedido.servicio && (
                   <Cabecera titulo={SERVICIOS[pedido.servicio].titulo} bajada={SERVICIOS[pedido.servicio].bajada} />
                 )}
-                {paso === 2 && <Cabecera titulo="¿Cuándo te queda bien?" bajada="Elegí el día y el momento que preferís." />}
-                {paso === 3 && <Cabecera titulo="Último paso" bajada="Así sabe quién sos cuando le llegue el mensaje." />}
+                {paso === 2 && <Cabecera titulo="¿Cuándo te queda bien?" bajada="Elegí un día y uno de los horarios libres." />}
+                {paso === 3 && <Cabecera titulo="Último paso" bajada="Así sabe quién sos cuando le llegue tu turno." />}
               </div>
 
               <div className="pasos-cuerpo" key={paso}>
+                {error && (
+                  <p className="aviso-error" role="alert">
+                    <CircleAlert /> {error}
+                  </p>
+                )}
                 {paso === 0 && (
                   <PasoServicio
                     cat={cat}
                     valor={pedido.servicio}
                     onElegir={(servicio) => {
-                      if (servicio !== pedido.servicio) set({ servicio, items: [], otraZona: "" });
+                      if (servicio !== pedido.servicio) set({ servicio, items: [], otraZona: "", hora: null });
                       irA(1);
                     }}
                   />
                 )}
                 {paso === 1 && <PasoDetalle cat={cat} pedido={pedido} set={set} />}
-                {paso === 2 && <PasoDia cat={cat} pedido={pedido} set={set} />}
+                {paso === 2 && (
+                  <PasoDia
+                    cat={cat}
+                    pedido={pedido}
+                    set={(c) => {
+                      setError("");
+                      set(c);
+                    }}
+                    ocupados={ocupados}
+                    fallo={falloOcupados}
+                    onReintentar={cargarOcupados}
+                  />
+                )}
                 {paso === 3 && <PasoDatos pedido={pedido} set={set} mensaje={mensaje} />}
               </div>
 
@@ -189,24 +232,22 @@ export function Booking() {
                     className="btn btn-primario"
                     style={{ marginLeft: "auto" }}
                     disabled={!puedeSeguir}
-                    onClick={() => irA(paso + 1)}
+                    onClick={() => {
+                      setError("");
+                      irA(paso + 1);
+                    }}
                   >
                     Siguiente <ArrowRight />
                   </button>
-                ) : listo ? (
-                  <a
-                    className="btn btn-whatsapp"
-                    style={{ marginLeft: "auto" }}
-                    href={linkWhatsApp(mensaje)}
-                    target="_blank"
-                    rel="noopener"
-                    onClick={enviar}
-                  >
-                    <IconoWhatsApp /> Enviar por WhatsApp
-                  </a>
                 ) : (
-                  <button type="button" className="btn btn-whatsapp" style={{ marginLeft: "auto" }} disabled>
-                    <IconoWhatsApp /> Enviar por WhatsApp
+                  <button
+                    type="button"
+                    className="btn btn-primario"
+                    style={{ marginLeft: "auto" }}
+                    disabled={!listo || reservando}
+                    onClick={reservar}
+                  >
+                    <CalendarCheck /> {reservando ? "Reservando…" : "Reservar turno"}
                   </button>
                 )}
               </footer>
@@ -258,7 +299,7 @@ function PasoServicio({
             <span className="opcion-titulo">{SERVICIOS[id].titulo}</span>
             <span className="opcion-bajada">{SERVICIOS[id].bajada}</span>
             <span className="chip-dato">
-              <Clock /> {cat.duraciones[id]}
+              <Clock /> Turno de {formatoDuracion(cat.duracionMin[id])}
             </span>
           </span>
           <span className="check">
@@ -404,44 +445,56 @@ function PasoDetalle({ cat, pedido, set }: { cat: Catalogo; pedido: Pedido; set:
 /* ───────────── Paso 3 ───────────── */
 
 const DOW = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
-const ICONO_FRANJA: Record<FranjaId, ReactNode> = {
-  manana: <Sunrise />,
-  tarde: <Sunset />,
-  indistinto: <CalendarHeart />,
-};
 
-function PasoDia({ cat, pedido, set }: { cat: Catalogo; pedido: Pedido; set: SetPedido }) {
-  const columnas = [...cat.diasAtencion].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+function PasoDia({
+  cat,
+  pedido,
+  set,
+  ocupados,
+  fallo,
+  onReintentar,
+}: {
+  cat: Catalogo;
+  pedido: Pedido;
+  set: SetPedido;
+  ocupados: Ocupados | null;
+  fallo: boolean;
+  onReintentar: () => void;
+}) {
+  const duracion = pedido.servicio ? cat.duracionMin[pedido.servicio] : 30;
 
-  const { semanas, rango } = useMemo(() => {
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    const primero = new Date(hoy);
-    primero.setDate(hoy.getDate() + 1);
-    const ultimo = new Date(hoy);
-    ultimo.setDate(hoy.getDate() + cat.diasAMostrar);
-
-    // arranca el lunes de la semana del primer día disponible
-    const cursor = new Date(primero);
-    cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7));
-    const semanas: { fecha: Date; habil: boolean }[][] = [];
-    while (cursor <= ultimo) {
-      const semana: { fecha: Date; habil: boolean }[] = [];
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(cursor);
-        if (columnas.includes(d.getDay())) {
-          const libre = !cat.diasBloqueados.includes(isoDe(d));
-          semana.push({ fecha: d, habil: libre && d >= primero && d <= ultimo });
-        }
-        cursor.setDate(cursor.getDate() + 1);
-      }
-      semanas.push(semana);
+  const { dias, columnas, rango } = useMemo(() => {
+    const fechas = fechasOfrecidas(cat);
+    // turnos libres por día (si todavía no llegaron los ocupados, se calculan sin ellos)
+    const libresDe = (iso: string) => turnosLibres(cat, iso, duracion, ocupados?.[iso] ?? []);
+    const conHorario = fechas.filter((f) => tramosDe(cat, f).length > 0);
+    const columnas = [1, 2, 3, 4, 5, 6, 0].filter(
+      (d) => cat.semana[d].length > 0 || conHorario.some((f) => diaDeSemana(f) === d),
+    );
+    // la grilla arranca el lunes de esta semana
+    const primero = sumarDias(fechas[0], -((diaDeSemana(fechas[0]) + 6) % 7));
+    const ultimo = fechas[fechas.length - 1];
+    const dias: { iso: string; libres: string[]; atiende: boolean; enRango: boolean }[] = [];
+    for (let f = primero; f <= ultimo; f = sumarDias(f, 1)) {
+      if (!columnas.includes(diaDeSemana(f))) continue;
+      const enRango = f >= fechas[0];
+      dias.push({ iso: f, libres: enRango ? libresDe(f) : [], atiende: tramosDe(cat, f).length > 0, enRango });
     }
-    const mes = (d: Date) => d.toLocaleDateString("es-AR", { month: "long" });
-    const rango = mes(primero) === mes(ultimo) ? mes(primero) : `${mes(primero)} – ${mes(ultimo)}`;
-    return { semanas, rango };
+    const mes = (iso: string) => parseFecha(iso).toLocaleDateString("es-AR", { month: "long" });
+    const rango = mes(fechas[0]) === mes(ultimo) ? mes(ultimo) : `${mes(fechas[0])} – ${mes(ultimo)}`;
+    return { dias, columnas, rango };
+  }, [cat, duracion, ocupados]);
+
+  const elegido = dias.find((d) => d.iso === pedido.fecha);
+  const horarios = elegido?.libres ?? [];
+  // si el horario elegido dejó de estar libre, se descarta
+  useEffect(() => {
+    if (ocupados && pedido.hora && pedido.fecha && !horarios.includes(pedido.hora)) set({ hora: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cat]);
+  }, [ocupados, pedido.fecha]);
+
+  const manana = horarios.filter((h) => aMin(h) < 13 * 60);
+  const tarde = horarios.filter((h) => aMin(h) >= 13 * 60);
 
   return (
     <>
@@ -455,22 +508,25 @@ function PasoDia({ cat, pedido, set }: { cat: Catalogo; pedido: Pedido; set: Set
               {DOW[d]}
             </span>
           ))}
-          {semanas.flat().map(({ fecha, habil }) => {
-            const iso = isoDe(fecha);
-            const etiqueta = fecha.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
+          {dias.map(({ iso, libres, atiende, enRango }) => {
+            const fecha = parseFecha(iso);
+            const habil = enRango && libres.length > 0;
+            const completo = enRango && atiende && libres.length === 0 && !!ocupados;
+            const etiqueta = `${fecha.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}${completo ? ", sin turnos libres" : ""}`;
             return (
               <button
                 key={iso}
                 type="button"
-                className="dia"
+                className={`dia ${completo ? "dia-completo" : ""}`}
                 disabled={!habil}
                 aria-pressed={pedido.fecha === iso}
                 aria-label={etiqueta}
-                onClick={() => set({ fecha: iso })}
+                title={completo ? "Sin turnos libres" : undefined}
+                onClick={() => set({ fecha: iso, hora: null })}
               >
                 <span>
                   {fecha.getDate()}
-                  {fecha.getDate() === 1 && habil && (
+                  {fecha.getDate() === 1 && enRango && (
                     <span className="dia-mes">{fecha.toLocaleDateString("es-AR", { month: "short" })}</span>
                   )}
                 </span>
@@ -478,31 +534,64 @@ function PasoDia({ cat, pedido, set }: { cat: Catalogo; pedido: Pedido; set: Set
             );
           })}
         </div>
+        <p className="leyenda">
+          <span className="leyenda-punto" /> Sin turnos libres
+        </p>
       </div>
 
       <div className="seccion">
-        <h3 className="seccion-titulo">Horario</h3>
-        <div className="franjas" role="radiogroup" aria-label="Horario">
-          {FRANJAS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              role="radio"
-              className="franja"
-              aria-checked={pedido.franja === f.id}
-              onClick={() => set({ franja: f.id })}
-            >
-              {ICONO_FRANJA[f.id]}
-              <strong>{f.nombre}</strong>
-              <span>{f.detalle}</span>
+        <h3 className="seccion-titulo">
+          Horario <small>Turnos de {formatoDuracion(duracion)}</small>
+        </h3>
+        {!pedido.fecha ? (
+          <p className="horas-vacio">Elegí un día para ver los horarios libres.</p>
+        ) : fallo ? (
+          <p className="horas-vacio">
+            No pudimos ver qué horarios están libres.{" "}
+            <button type="button" className="link" onClick={onReintentar}>
+              Probá de nuevo
             </button>
-          ))}
-        </div>
+          </p>
+        ) : !ocupados ? (
+          <div className="horas">
+            {Array.from({ length: 8 }, (_, i) => (
+              <span key={i} className="hora-esqueleto" />
+            ))}
+          </div>
+        ) : (
+          <>
+            <p className="horas-dia">{fechaLarga(pedido.fecha)}</p>
+            {[
+              ["Mañana", manana],
+              ["Tarde", tarde],
+            ].map(([titulo, lista]) =>
+              (lista as string[]).length ? (
+                <div key={titulo as string} className="horas-grupo">
+                  <span className="horas-titulo">{titulo as string}</span>
+                  <div className="horas" role="radiogroup" aria-label={`Horarios de la ${(titulo as string).toLowerCase()}`}>
+                    {(lista as string[]).map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        role="radio"
+                        className="hora"
+                        aria-checked={pedido.hora === h}
+                        onClick={() => set({ hora: h })}
+                      >
+                        {h}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null,
+            )}
+          </>
+        )}
       </div>
 
       <p className="nota">
         <Info />
-        Esto es un pedido de turno: {NEGOCIO.profesional} te responde por WhatsApp con el horario exacto.
+        Reservás el horario desde acá y {NEGOCIO.profesional} te lo confirma por WhatsApp.
       </p>
     </>
   );
@@ -625,17 +714,20 @@ function Listo({ solicitud, onOtro }: { solicitud: Solicitud; onOtro: () => void
       <div className="listo-sello">
         <Check />
       </div>
-      <h2>¡Listo, {nombre}!</h2>
+      <h2>¡Reservado, {nombre}!</h2>
+      <p className="listo-cuando">
+        {fechaLarga(solicitud.fecha)} · {solicitud.hora} h
+      </p>
       <p>
-        Se abrió WhatsApp con tu pedido <span className="codigo">#{solicitud.id}</span>. Solo falta que toques enviar
-        y {NEGOCIO.profesional} te confirma el horario.
+        Tu turno <span className="codigo">#{solicitud.id}</span> ya está en la agenda de {NEGOCIO.profesional}. Ahora
+        mandale el mensaje por WhatsApp así te lo confirma.
       </p>
       <div className="listo-acciones">
         <a className="btn btn-whatsapp" href={linkWhatsApp(mensajeWhatsApp(solicitud))} target="_blank" rel="noopener">
-          <IconoWhatsApp /> Abrir WhatsApp de nuevo
+          <IconoWhatsApp /> Avisar por WhatsApp
         </a>
         <button type="button" className="btn btn-borde" onClick={onOtro}>
-          <RotateCcw /> Pedir otro turno
+          <RotateCcw /> Sacar otro turno
         </button>
       </div>
     </div>

@@ -1,14 +1,12 @@
-import { getStore } from "@netlify/blobs";
 import type { Config, Context } from "@netlify/functions";
-import { CATALOGO_INICIAL, normalizarCatalogo } from "../../src/data.ts";
+import { normalizarCatalogo } from "../../src/data.ts";
+import { ahoraEnParana } from "../../src/horarios.ts";
 import { json, sesionActual } from "../lib/sesion.mts";
-
-const store = () => getStore({ name: "config", consistency: "strong" });
+import { guardarCatalogo, leerCatalogo } from "../lib/solicitudes.mts";
 
 export default async (req: Request, context: Context) => {
   if (req.method === "GET") {
-    const guardado = await store().get("catalogo", { type: "json" });
-    return json(guardado ? normalizarCatalogo(guardado) : CATALOGO_INICIAL);
+    return Response.json(await leerCatalogo(), { headers: { "cache-control": "no-store" } });
   }
 
   if (req.method === "PUT") {
@@ -16,7 +14,10 @@ export default async (req: Request, context: Context) => {
     const entrada = await req.json().catch(() => null);
     if (!entrada) return json({ error: "Catálogo inválido" }, 400);
     const catalogo = normalizarCatalogo(entrada);
-    await store().setJSON("catalogo", catalogo);
+    // los días especiales que ya pasaron no hacen falta
+    const { hoy } = ahoraEnParana();
+    catalogo.excepciones = Object.fromEntries(Object.entries(catalogo.excepciones).filter(([k]) => k >= hoy));
+    await guardarCatalogo(catalogo);
     return json(catalogo);
   }
 

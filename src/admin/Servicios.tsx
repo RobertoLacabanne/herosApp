@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, Plus, Trash2, X } from "lucide-react";
-import type { Catalogo, Combo, Publico } from "../data";
+import { DURACIONES_POSIBLES, type Catalogo, type Combo, type Publico, type ServicioId } from "../data";
+import { formatoDuracion } from "../horarios";
 import { IlusFacial, IlusLaser } from "../icons";
 
 type SetCat = (c: Catalogo) => void;
@@ -50,16 +51,7 @@ function Laser({ cat, set }: { cat: Catalogo; set: SetCat }) {
         </div>
       </header>
 
-      <div className="campo">
-        <label htmlFor="dur-laser">Duración que se muestra</label>
-        <input
-          id="dur-laser"
-          className="input"
-          maxLength={30}
-          value={cat.duraciones.laser}
-          onChange={(e) => set({ ...cat, duraciones: { ...cat.duraciones, laser: e.target.value } })}
-        />
-      </div>
+      <Duracion cat={cat} set={set} servicio="laser" />
 
       <div className="ed-sub">
         <div className="segmentado" role="radiogroup" aria-label="Público">
@@ -138,16 +130,7 @@ function Faciales({ cat, set }: { cat: Catalogo; set: SetCat }) {
         </div>
       </header>
 
-      <div className="campo">
-        <label htmlFor="dur-facial">Duración que se muestra</label>
-        <input
-          id="dur-facial"
-          className="input"
-          maxLength={30}
-          value={cat.duraciones.facial}
-          onChange={(e) => set({ ...cat, duraciones: { ...cat.duraciones, facial: e.target.value } })}
-        />
-      </div>
+      <Duracion cat={cat} set={set} servicio="facial" />
 
       <div className="ed-sub">
         <h3 className="seccion-titulo">
@@ -319,5 +302,28 @@ function Agregar({
         <Plus /> <span>Agregar</span>
       </button>
     </form>
+  );
+}
+
+function Duracion({ cat, set, servicio }: { cat: Catalogo; set: SetCat; servicio: ServicioId }) {
+  return (
+    <div className="campo">
+      <span className="campo-label">
+        Duración de cada turno <small>(define cada cuánto se ocupan tus horarios)</small>
+      </span>
+      <div className="chips">
+        {DURACIONES_POSIBLES.map((m) => (
+          <button
+            key={m}
+            type="button"
+            className="chip"
+            aria-pressed={cat.duracionMin[servicio] === m}
+            onClick={() => set({ ...cat, duracionMin: { ...cat.duracionMin, [servicio]: m } })}
+          >
+            {formatoDuracion(m)}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

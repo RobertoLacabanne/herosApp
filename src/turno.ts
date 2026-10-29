@@ -1,13 +1,5 @@
-import {
-  FRANJAS,
-  NEGOCIO,
-  SERVICIOS,
-  type Catalogo,
-  type Combo,
-  type FranjaId,
-  type Publico,
-  type ServicioId,
-} from "./data";
+import { FRANJAS, NEGOCIO, SERVICIOS, type Catalogo, type Combo, type FranjaId, type Publico, type ServicioId } from "./data";
+import { formatoDuracion } from "./horarios";
 
 export interface Pedido {
   servicio: ServicioId | null;
@@ -15,7 +7,7 @@ export interface Pedido {
   items: string[];
   otraZona: string;
   fecha: string | null; // AAAA-MM-DD
-  franja: FranjaId | null;
+  hora: string | null; // HH:MM
   nombre: string;
   telefono: string;
   primeraVez: boolean | null;
@@ -32,7 +24,10 @@ export interface Solicitud {
   items: string[];
   otraZona: string;
   fecha: string;
-  franja: FranjaId;
+  hora?: string; // los pedidos viejos no tienen hora…
+  duracion?: number; // minutos
+  franja?: FranjaId; // …sino una franja
+  manual?: boolean; // lo anotó la profesional desde el panel
   nombre: string;
   telefono: string;
   primeraVez: boolean | null;
@@ -45,7 +40,7 @@ export const pedidoVacio: Pedido = {
   items: [],
   otraZona: "",
   fecha: null,
-  franja: null,
+  hora: null,
   nombre: "",
   telefono: "",
   primeraVez: null,
@@ -58,8 +53,7 @@ export function combosDe(p: Pick<Pedido, "servicio" | "publico">, cat: Catalogo)
   return [];
 }
 
-const mismoConjunto = (a: string[], b: string[]) =>
-  a.length === b.length && a.every((x) => b.includes(x));
+const mismoConjunto = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
 
 export function comboElegido(p: Pedido, cat: Catalogo): Combo | null {
   return combosDe(p, cat).find((c) => mismoConjunto(c.items, p.items)) ?? null;
@@ -77,16 +71,16 @@ export function isoDe(d: Date): string {
 }
 
 export function fechaLarga(iso: string): string {
-  const txt = parseFecha(iso).toLocaleDateString("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  const txt = parseFecha(iso).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
   return txt.charAt(0).toUpperCase() + txt.slice(1);
 }
 
 export function nombreFranja(id: FranjaId): string {
   return FRANJAS.find((f) => f.id === id)?.nombre ?? id;
+}
+
+export function horaDe(s: Pick<Solicitud, "hora" | "franja">): string {
+  return s.hora ?? (s.franja ? nombreFranja(s.franja) : "");
 }
 
 export function codigoNuevo(): string {
@@ -101,15 +95,12 @@ export function pedidoListo(p: Pedido): boolean {
     !!p.servicio &&
     (p.items.length > 0 || p.otraZona.trim().length > 0) &&
     !!p.fecha &&
-    !!p.franja &&
+    !!p.hora &&
     p.nombre.trim().length > 1
   );
 }
 
-export type Borrador = Omit<Solicitud, "fecha" | "franja"> & {
-  fecha: string | null;
-  franja: FranjaId | null;
-};
+export type Borrador = Omit<Solicitud, "fecha"> & { fecha: string | null };
 
 export function aSolicitud(p: Pedido, id: string, cat: Catalogo): Solicitud {
   return aBorrador(p, id, cat) as Solicitud;
@@ -126,7 +117,8 @@ export function aBorrador(p: Pedido, id: string, cat: Catalogo): Borrador {
     items: p.items,
     otraZona: p.otraZona.trim(),
     fecha: p.fecha,
-    franja: p.franja,
+    hora: p.hora ?? undefined,
+    duracion: p.servicio ? cat.duracionMin[p.servicio] : undefined,
     nombre: p.nombre.trim(),
     telefono: p.telefono.trim(),
     primeraVez: p.primeraVez,
@@ -134,31 +126,20 @@ export function aBorrador(p: Pedido, id: string, cat: Catalogo): Borrador {
   };
 }
 
-const FRANJA_EN_MENSAJE: Record<FranjaId, string> = {
-  manana: "por la mañana",
-  tarde: "por la tarde",
-  indistinto: "en el horario que tengas libre",
-};
-
 export function mensajeWhatsApp(s: Borrador): string {
   const servicio = SERVICIOS[s.servicio].titulo;
-  const titulo =
-    s.servicio === "laser"
-      ? `${servicio}${s.publico === "el" ? " (hombre)" : ""}`
-      : servicio;
+  const titulo = s.servicio === "laser" ? `${servicio}${s.publico === "el" ? " (hombre)" : ""}` : servicio;
   const etiquetaItems = s.servicio === "laser" ? "Zonas" : "Tratamiento";
-  const lineas = [
-    `¡Hola ${NEGOCIO.profesional}! Quiero pedir un turno 🌿`,
-    "",
-    `*${titulo}*`,
-  ];
+  const lineas = [`¡Hola ${NEGOCIO.profesional}! Reservé un turno por la página 🌿`, "", `*${titulo}*`];
   if (s.items.length) {
     lineas.push(`${etiquetaItems}${s.combo ? ` (${s.combo})` : ""}: ${s.items.join(", ")}`);
   }
   if (s.otraZona) lineas.push(`${s.items.length ? "Además" : etiquetaItems}: ${s.otraZona}`);
   if (s.fecha || s.nombre) lineas.push("");
   if (s.fecha) {
-    lineas.push(`📅 ${fechaLarga(s.fecha)}${s.franja ? `, ${FRANJA_EN_MENSAJE[s.franja]}` : ""}`);
+    const hora = s.hora ? ` a las ${s.hora} h` : "";
+    const dur = s.hora && s.duracion ? ` (${formatoDuracion(s.duracion)})` : "";
+    lineas.push(`📅 ${fechaLarga(s.fecha)}${hora}${dur}`);
   }
   if (s.nombre) lineas.push(`👤 ${s.nombre}`);
   if (s.primeraVez !== null) {
