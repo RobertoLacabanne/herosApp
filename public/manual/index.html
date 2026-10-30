@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>Manual ERHOS Turnos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap">
+<style>
+  /* Layout: una columna de lectura; en pantallas anchas cada paso pone la captura del celular al costado. */
+  :root {
+    --fondo: #f7f1eb;
+    --superficie: #fffcf9;
+    --superficie-2: #fbf6f1;
+    --texto: #2b2030;
+    --suave: #6d5f70;
+    --tenue: #9a8c9c;
+    --borde: #eadfd5;
+    --ciruela: #4e2c5c;
+    --ciruela-fuerte: #3d2249;
+    --ciruela-claro: #f3ecf5;
+    --cobre: #8a5239;
+    --cobre-claro: #f5e7dd;
+    --verde: #2f6b4b;
+    --verde-claro: #e2f0e7;
+    --alerta: #87591a;
+    --alerta-claro: #f8ecd5;
+    --marco: #2f1a39;
+    --f-display: "Cormorant Garamond", "Times New Roman", serif;
+    --f-ui: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fondo: #1d1421; --superficie: #271c2c; --superficie-2: #2e2234; --texto: #f1e8ee; --suave: #c4b3c0; --tenue: #94839a;
+      --borde: #3d2e43; --ciruela: #d9b8e4; --ciruela-fuerte: #ead6f0; --ciruela-claro: #3a2843; --cobre: #e0a98b; --cobre-claro: #3d2a25;
+      --verde: #8fd1aa; --verde-claro: #203a2c; --alerta: #e8c27e; --alerta-claro: #3b2f1c; --marco: #0e0911;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --fondo: #1d1421; --superficie: #271c2c; --superficie-2: #2e2234; --texto: #f1e8ee; --suave: #c4b3c0; --tenue: #94839a;
+    --borde: #3d2e43; --ciruela: #d9b8e4; --ciruela-fuerte: #ead6f0; --ciruela-claro: #3a2843; --cobre: #e0a98b; --cobre-claro: #3d2a25;
+    --verde: #8fd1aa; --verde-claro: #203a2c; --alerta: #e8c27e; --alerta-claro: #3b2f1c; --marco: #0e0911;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: var(--f-ui);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .hoja {
+    max-width: 860px;
+    margin: 0 auto;
+    padding-block: 40px 72px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 56px;
+  }
+  h1, h2, h3 { font-family: var(--f-display); font-weight: 600; color: var(--ciruela-fuerte); line-height: 1.15; text-wrap: balance; font-variant-numeric: lining-nums; margin: 0; }
+  h1 { font-size: clamp(38px, 7vw, 56px); font-weight: 500; }
+  h1 em { font-style: italic; color: var(--cobre); }
+  h2 { font-size: clamp(28px, 4.6vw, 36px); }
+  h3 { font-size: 23px; }
+  p { margin: 0; max-width: 62ch; }
+  strong { font-weight: 600; }
+  .etiqueta {
+    font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--cobre);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .etiqueta::before { content: ""; width: 22px; height: 1px; background: currentColor; }
+  .boton-ui {
+    display: inline-block; padding: 0 8px; border-radius: 6px; background: var(--ciruela-claro); color: var(--ciruela);
+    font-weight: 600; font-size: .92em; white-space: nowrap;
+  }
+
+  /* Portada */
+  .portada { display: grid; gap: 20px; }
+  .portada-marca { display: flex; align-items: center; gap: 14px; }
+  .portada-marca img { width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 6px 18px -8px rgb(47 26 57 / .5); }
+  .portada-marca span { font-size: 14px; color: var(--suave); line-height: 1.35; }
+  .portada-marca b { display: block; color: var(--texto); font-weight: 600; }
+  .bajada { font-size: 18px; color: var(--suave); }
+
+  .links { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .link {
+    display: grid; gap: 6px; padding: 18px 20px; border-radius: 16px; background: var(--superficie);
+    border: 1px solid var(--borde);
+  }
+  .link small { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--tenue); }
+  .link-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .link a { color: var(--ciruela); font-weight: 600; font-size: 17px; word-break: break-all; }
+  .link p { font-size: 14px; color: var(--suave); }
+  .copiar {
+    border: 1px solid var(--borde); background: var(--superficie-2); color: var(--ciruela); border-radius: 999px;
+    padding: 4px 12px; font: 600 13px var(--f-ui); cursor: pointer;
+  }
+  .copiar:hover { border-color: var(--ciruela); }
+  .copiar:focus-visible, a:focus-visible { outline: 2px solid var(--cobre); outline-offset: 2px; }
+  .acceso {
+    display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 14px 20px; border-radius: 12px;
+    background: var(--cobre-claro); color: var(--cobre); font-size: 15px;
+  }
+  .acceso b { color: var(--texto); }
+  .marcador { background: var(--alerta-claro); color: var(--alerta); padding: 1px 8px; border-radius: 6px; font-weight: 600; }
+
+  /* Secciones */
+  section { display: grid; gap: 24px; }
+  .intro-seccion { display: grid; gap: 10px; }
+  .intro-seccion p { color: var(--suave); }
+
+  .flujo { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; counter-reset: flujo; }
+  .flujo li {
+    list-style: none; counter-increment: flujo; padding: 16px; border-radius: 14px; background: var(--superficie);
+    border: 1px solid var(--borde); font-size: 15px; display: grid; gap: 6px; align-content: start;
+  }
+  .flujo li::before {
+    content: counter(flujo); width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center;
+    background: var(--ciruela); color: var(--fondo); font-weight: 600; font-size: 13px;
+  }
+  .flujo { padding: 0; margin: 0; }
+
+  .paso {
+    display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; align-items: start;
+    padding: 24px; border-radius: 20px; background: var(--superficie); border: 1px solid var(--borde);
+  }
+  .paso.sin-imagen { grid-template-columns: minmax(0, 1fr); }
+  .paso-texto { display: grid; gap: 12px; min-width: 0; align-content: start; }
+  .paso-num { font-family: var(--f-display); font-size: 44px; line-height: .8; color: var(--cobre); font-variant-numeric: lining-nums; }
+  .paso-texto ol, .paso-texto ul { margin: 0; padding-left: 22px; display: grid; gap: 6px; max-width: 60ch; }
+  .paso-texto li::marker { color: var(--cobre); font-weight: 600; }
+  .celu {
+    margin: 0; border-radius: 26px; padding: 7px; background: var(--marco); box-shadow: 0 18px 40px -20px rgb(47 26 57 / .55);
+    max-width: 100%;
+  }
+  .celu img { display: block; width: 100%; height: auto; border-radius: 20px; }
+  .celu figcaption { color: #cdbccc; font-size: 12px; text-align: center; padding: 6px 4px 2px; }
+  .recorte { margin: 0; border-radius: 16px; overflow: hidden; border: 1px solid var(--borde); max-width: 100%; }
+  .recorte img { display: block; width: 100%; height: auto; }
+  .par { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 560px; }
+
+  .consejo, .ojo {
+    display: grid; gap: 4px; padding: 14px 18px; border-radius: 12px; font-size: 15px; max-width: 62ch;
+  }
+  .consejo { background: var(--verde-claro); color: var(--verde); }
+  .ojo { background: var(--alerta-claro); color: var(--alerta); }
+  .consejo strong, .ojo strong { color: inherit; }
+
+  .tips { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .tip { padding: 18px 20px; border-radius: 16px; background: var(--superficie); border: 1px solid var(--borde); display: grid; gap: 6px; align-content: start; }
+  .tip h3 { font-size: 20px; }
+  .tip p { font-size: 15px; color: var(--suave); }
+
+  .preguntas { display: grid; gap: 10px; }
+  details { border-radius: 14px; background: var(--superficie); border: 1px solid var(--borde); padding: 0 20px; }
+  summary { cursor: pointer; padding: 16px 0; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--cobre); font-size: 20px; line-height: 1; }
+  details[open] summary::after { content: "–"; }
+  details p { padding-bottom: 16px; color: var(--suave); font-size: 15px; }
+
+  footer { color: var(--tenue); font-size: 13px; display: grid; gap: 4px; border-top: 1px solid var(--borde); padding-top: 20px; }
+
+  @media (max-width: 680px) {
+    .hoja { padding-block: 24px 56px; gap: 44px; }
+    .paso { grid-template-columns: minmax(0, 1fr); padding: 20px 18px; gap: 20px; }
+    .paso .celu { max-width: 280px; justify-self: center; }
+    .par { grid-template-columns: 1fr 1fr; gap: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* Versión PDF: bloques en vez de grillas, que Chrome pagina mejor */
+  @media print {
+    @page { size: A5; margin: 12mm 11mm; }
+    :root { --fondo: #fff; }
+    body { font-size: 11pt; }
+    .hoja { display: block; padding: 0; max-width: none; }
+    .hoja > * + * { margin-top: 26px; }
+    section, .portada, .intro-seccion, .paso-texto, .links, .tips, .preguntas { display: block; }
+    section > * + * { margin-top: 14px; }
+    .portada > * + *, .intro-seccion > * + *, .paso-texto > * + * { margin-top: 8px; }
+    .portada-marca { display: flex; }
+    .copiar { display: none; }
+    .link, .tip, details { margin-bottom: 8px; }
+    .paso { display: flex; gap: 14px; padding: 14px; break-inside: avoid; }
+    .paso-texto { flex: 1; min-width: 0; }
+    .paso .celu { flex: none; width: 138px; }
+    .celu { box-shadow: none; padding: 4px; border-radius: 16px; break-inside: avoid; }
+    .celu img { border-radius: 12px; }
+    .par { display: flex; gap: 10px; max-width: 300px; break-inside: avoid; }
+    .par .celu { flex: 1; }
+    .flujo { break-inside: avoid; }
+    .tip, details, .flujo li, .link, .consejo, .ojo, figure { break-inside: avoid; }
+    h1 { font-size: 30pt; }
+    h2 { font-size: 21pt; }
+    h3 { font-size: 15pt; }
+    h2, h3, .intro-seccion { break-after: avoid; }
+    .intro-seccion .etiqueta { display: none; }
+    .intro-seccion { break-inside: avoid; }
+    section { break-before: page; }
+    .hoja > section { margin-top: 0; }
+    summary::after { content: none; }
+    details { padding: 0 14px; }
+  }
+</style>
+
+</head>
+<body>
+<main class="hoja">
+  <header class="portada">
+    <div class="portada-marca">
+      <img src="/manual/img/icono.png" alt="Ícono de la app ERHOS" width="56" height="56">
+      <span><b>ERHOS Estética</b>Guía para Rocío</span>
+    </div>
+    <h1>Tu app de turnos, <em>paso a paso.</em></h1>
+    <p class="bajada">Tus clientas reservan desde una página web, sin descargar nada. Vos manejás todo desde tu panel, que instalás en el celular como una app.</p>
+
+    <div class="links">
+      <div class="link">
+        <small>Para tus clientas</small>
+        <div class="link-fila">
+          <a href="https://erhos-turnos.netlify.app" target="_blank" rel="noopener" id="link-pagina">erhos-turnos.netlify.app</a>
+          <button class="copiar" type="button" data-copiar="https://erhos-turnos.netlify.app">Copiar</button>
+        </div>
+        <p>Este es el link que compartís. Abre en cualquier celular o compu.</p>
+      </div>
+      <div class="link">
+        <small>Solo para vos</small>
+        <div class="link-fila">
+          <a href="https://erhos-turnos.netlify.app/panel" target="_blank" rel="noopener" id="link-panel">erhos-turnos.netlify.app/panel</a>
+          <button class="copiar" type="button" data-copiar="https://erhos-turnos.netlify.app/panel">Copiar</button>
+        </div>
+        <p>Tu panel: turnos, servicios, agenda y cuenta.</p>
+      </div>
+    </div>
+    <p class="bajada" style="font-size:15px">¿Lo querés guardar? <a href="/manual/manual-erhos.pdf" style="color:var(--ciruela);font-weight:600">Descargá el manual en PDF</a>.</p>
+    <div class="acceso">
+      <span>Usuario: <b>rocio</b></span>
+      <span>Contraseña inicial: <span class="marcador">te la paso por mensaje privado</span></span>
+    </div>
+  </header>
+
+  <section aria-labelledby="como">
+    <div class="intro-seccion">
+      <span class="etiqueta">Cómo funciona</span>
+      <h2 id="como">Lo que pasa cuando alguien saca turno</h2>
+    </div>
+    <ol class="flujo">
+      <li>Tu clienta entra al link, elige el servicio y las zonas o el tratamiento.</li>
+      <li>Ve solo tus horarios libres y elige el día y la hora.</li>
+      <li>Toca <span class="boton-ui">Reservar turno</span> y el horario queda ocupado en tu agenda.</li>
+      <li>Te manda un WhatsApp con todo el detalle y vos se lo confirmás.</li>
+    </ol>
+    <div class="par">
+      <figure class="celu"><img src="/manual/img/c-horarios.jpg" alt="Pantalla donde la clienta elige día y hora entre los horarios libres" loading="lazy"><figcaption>La clienta elige día y hora</figcaption></figure>
+      <figure class="celu"><img src="/manual/img/c-listo.jpg" alt="Pantalla de turno reservado con el botón para avisar por WhatsApp" loading="lazy"><figcaption>Turno reservado y aviso por WhatsApp</figcaption></figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="primeros">
+    <div class="intro-seccion">
+      <span class="etiqueta">Una sola vez</span>
+      <h2 id="primeros">Primeros pasos</h2>
+      <p>Hacelos en este orden la primera vez. Después no hace falta repetirlos.</p>
+    </div>
+
+    <article class="paso">
+      <div class="paso-texto">
+        <span class="paso-num">1</span>
+        <h3>Entrá a tu panel</h3>
+        <p>Abrí el link de tu panel, escribí tu usuario y tu contraseña y tocá <span class="boton-ui">Entrar</span>. Tu celular te va a ofrecer guardar la contraseña: aceptá, así no la tenés que escribir de nuevo.</p>
+        <p>La sesión queda abierta en tu celular por dos meses.</p>
+      </div>
+      <figure class="celu"><img src="/manual/img/p-login.jpg" alt="Pantalla de ingreso al panel con usuario y contraseña" loading="lazy"></figure>
+    </article>
+
+    <article class="paso">
+      <div class="paso-texto">
+        <span class="paso-num">2</span>
+        <h3>Instalalo en tu celular</h3>
+        <p><strong>En iPhone</strong> (tiene que ser con Safari):</p>
+        <ol>
+          <li>Abrí el link del panel en Safari.</li>
+          <li>Tocá el botón <strong>Compartir</strong>, el cuadradito con la flecha hacia arriba.</li>
+          <li>Elegí <strong>Agregar a inicio</strong> y después <strong>Agregar</strong>.</li>
+        </ol>
+        <p><strong>En Android</strong> (con Chrome):</p>
+        <ol>
+          <li>Abrí el link del panel en Chrome.</li>
+          <li>Tocá los tres puntitos de arriba a la derecha.</li>
+          <li>Elegí <strong>Instalar app</strong> o <strong>Agregar a pantalla principal</strong>.</li>
+        </ol>
+        <p>Te va a quedar el ícono violeta de ERHOS entre tus apps. Esos mismos pasos también están en la pestaña <span class="boton-ui">Cuenta</span>.</p>
+      </div>
+      <figure class="celu"><img src="/manual/img/p-instalar.jpg" alt="Instrucciones para instalar el panel en el celular" loading="lazy"></figure>
+    </article>
+
+    <article class="paso sin-imagen">
+      <div class="paso-texto">
+        <span class="paso-num">3</span>
+        <h3>Cambiá tu contraseña</h3>
+        <p>Andá a <span class="boton-ui">Cuenta</span>, completá <strong>Cambiar contraseña</strong> con la actual y una nueva de al menos 8 caracteres, y guardala. Cuando la cambiás, se cierra la sesión en cualquier otro dispositivo donde estuviera abierta.</p>
+      </div>
+    </article>
+
+    <article class="paso">
+      <div class="paso-texto">
+        <span class="paso-num">4</span>
+        <h3>Cargá tus horarios</h3>
+        <p>Es lo más importante: la página solo ofrece turnos dentro de los horarios que cargues acá. Ahora tiene <strong>horarios de ejemplo</strong> que tenés que reemplazar por los tuyos.</p>
+        <ol>
+          <li>Entrá a <span class="boton-ui">Agenda</span>.</li>
+          <li>En <strong>Tu semana</strong>, prendé o apagá cada día con el interruptor <strong>Atiendo</strong>.</li>
+          <li>Elegí desde qué hora y hasta qué hora atendés. Si cortás al mediodía, tocá <strong>Agregar otro horario</strong> y cargá el de la tarde.</li>
+          <li>Si varios días tienen el mismo horario, armá uno y tocá <strong>Copiar este horario a los demás días que atendés</strong>.</li>
+          <li>Abajo aparece la barra para guardar: tocá <span class="boton-ui">Guardar cambios</span>.</li>
+        </ol>
+      </div>
+      <figure class="celu"><img src="/manual/img/p-semana.jpg" alt="Editor de la semana con los horarios de cada día" loading="lazy"></figure>
+    </article>
+
+    <article class="paso">
+      <div class="paso-texto">
+        <span class="paso-num">5</span>
+        <h3>Revisá tus servicios</h3>
+        <p>En <span class="boton-ui">Servicios</span> están la depilación láser y los faciales tal como los ve la gente.</p>
+        <ul>
+          <li><strong>Duración de cada turno:</strong> define cuánto lugar ocupa cada reserva en tu agenda. Hoy está en 30 min para láser y 1 h 30 para faciales.</li>
+          <li><strong>Zonas:</strong> tocá la ✕ para quitar una o escribí una nueva y tocá <strong>Agregar</strong>. Las de ella y las de él se editan por separado.</li>
+          <li><strong>Combos:</strong> cambiale el nombre o tocá las zonas que incluye. Un combo sin zonas no se muestra.</li>
+          <li><strong>Tratamientos faciales:</strong> nombre y una frase corta. Las frases que están ahora son de ejemplo, cambialas por las tuyas.</li>
+        </ul>
+        <p>Siempre terminá con <span class="boton-ui">Guardar cambios</span>.</p>
+      </div>
+      <figure class="celu"><img src="/manual/img/p-servicios.jpg" alt="Editor de servicios con duraciones y zonas" loading="lazy"></figure>
+    </article>
+
+    <article class="paso sin-imagen">
+      <div class="paso-texto">
+        <span class="paso-num">6</span>
+        <h3>Compartí tu link</h3>
+        <p>Poné <strong>erhos-turnos.netlify.app</strong> en la bio de Instagram y en tu estado de WhatsApp, y mandáselo a quien te pida turno. Tus clientas no tienen que descargar ni registrarse en nada: abren el link, eligen y reservan.</p>
+      </div>
+    </article>
+  </section>
+
+  <section aria-labelledby="dia">
+    <div class="intro-seccion">
+      <span class="etiqueta">Todos los días</span>
+      <h2 id="dia">Tus turnos</h2>
+      <p>En <span class="boton-ui">Turnos</span> ves la agenda ordenada por día y hora. El numerito sobre la pestaña te dice cuántos turnos esperan que los confirmes.</p>
+    </div>
+
+    <article class="paso">
+      <div class="paso-texto">
+        <h3>Cuando alguien reserva</h3>
+        <p>El turno aparece como <strong>Sin confirmar</strong> y la clienta te escribe por WhatsApp con el detalle y el código del turno, por ejemplo <strong>#K7M2P</strong>. En cada turno tenés:</p>
+        <ul>
+          <li><span class="boton-ui">Confirmar</span>: el turno pasa a confirmado.</li>
+          <li><span class="boton-ui">Escribirle</span>: abre un WhatsApp con la clienta (solo si dejó su teléfono).</li>
+          <li><strong>Cancelar</strong>: el horario vuelve a quedar libre en la página.</li>
+          <li>El tachito borra el turno para siempre.</li>
+        </ul>
+        <p>Arriba podés filtrar: <strong>Próximos</strong> (lo que viene), <strong>Sin confirmar</strong>, <strong>Confirmados</strong>, <strong>Cancelados</strong> o <strong>Todos</strong>, y buscar por nombre o código.</p>
+      </div>
+      <figure class="celu"><img src="/manual/img/p-turnos.jpg" alt="Lista de turnos del panel ordenada por hora" loading="lazy"></figure>
+    </article>
+
+    <article class="paso">
+      <div class="paso-texto">
+        <h3>Anotar un turno que te piden por teléfono</h3>
+        <p>Si alguien te pide turno por teléfono, por Instagram o en persona, anotalo para que ese horario no lo pueda tomar otra persona.</p>
+        <ol>
+          <li>En <span class="boton-ui">Turnos</span>, tocá <span class="boton-ui">Anotar turno</span>.</li>
+          <li>Completá el nombre y, si querés, el teléfono y las zonas.</li>
+          <li>Elegí el servicio, el día y la hora. Abajo te muestra los horarios libres de ese día para que toques uno.</li>
+          <li>Tocá <span class="boton-ui">Anotar</span>. Queda confirmado y marcado como <strong>Anotado por vos</strong>.</li>
+        </ol>
+        <p>Si el horario se pisa con otro o queda fuera de tu horario, te avisa, pero te deja anotarlo igual.</p>
+      </div>
+      <figure class="celu"><img src="/manual/img/p-anotar.jpg" alt="Formulario para anotar un turno a mano" loading="lazy"></figure>
+    </article>
+  </section>
+
+  <section aria-labelledby="cambios">
+    <div class="intro-seccion">
+      <span class="etiqueta">Cuando hace falta</span>
+      <h2 id="cambios">Vacaciones, feriados y días distintos</h2>
+    </div>
+    <article class="paso">
+      <div class="paso-texto">
+        <h3>Cerrar un día o atender en otro horario</h3>
+        <ol>
+          <li>Entrá a <span class="boton-ui">Agenda</span> y bajá hasta <strong>Días especiales</strong>.</li>
+          <li>Tocá el día en el calendario.</li>
+          <li>Elegí <strong>No atiendo este día</strong> (vacaciones, feriado, un curso) o <strong>Horario especial</strong> y cargá el horario de ese día.</li>
+          <li>Tocá <span class="boton-ui">Aplicar</span> y después <span class="boton-ui">Guardar cambios</span>.</li>
+        </ol>
+        <p>En el calendario, los días cerrados aparecen en rojo y tachados, y los de horario especial en color cobre. Para volver al horario de siempre, tocá el día y elegí <strong>Horario de siempre</strong>, o tocá la ✕ en la lista de próximos días especiales.</p>
+        <p class="ojo"><strong>Ojo</strong>Si cerrás un día donde ya tenías turnos, esos turnos no se cancelan solos. Revisalos en Turnos y avisales a esas clientas.</p>
+      </div>
+      <figure class="celu"><img src="/manual/img/p-dia-especial.jpg" alt="Opciones para un día especial: horario de siempre, no atiendo u horario especial" loading="lazy"></figure>
+    </article>
+    <article class="paso sin-imagen">
+      <div class="paso-texto">
+        <h3>Hasta cuándo pueden reservar</h3>
+        <p>Al final de <span class="boton-ui">Agenda</span> elegís con cuánta anticipación te pueden sacar turno: dos semanas, tres semanas, un mes, un mes y medio o dos meses.</p>
+      </div>
+    </article>
+  </section>
+
+  <section aria-labelledby="saber">
+    <div class="intro-seccion">
+      <span class="etiqueta">Bueno saber</span>
+      <h2 id="saber">Cómo se arman los turnos</h2>
+    </div>
+    <div class="tips">
+      <div class="tip"><h3>Cada media hora</h3><p>Los turnos arrancan cada 30 minutos (9:00, 9:30, 10:00…) y ocupan lo que dura el servicio. Un facial de 1 h 30 a las 16:00 bloquea hasta las 17:30.</p></div>
+      <div class="tip"><h3>El mismo día</h3><p>Para hoy, la página solo ofrece turnos que empiezan dentro de 2 horas o más, así no te reservan sobre la hora.</p></div>
+      <div class="tip"><h3>Sin superposición</h3><p>Si dos personas eligen el mismo horario al mismo tiempo, la segunda recibe un aviso y elige otro.</p></div>
+      <div class="tip"><h3>Guardar cambios</h3><p>En Servicios y Agenda nada cambia en la página hasta que tocás <strong>Guardar cambios</strong>. Si te arrepentís, tocá <strong>Descartar</strong>.</p></div>
+    </div>
+    <p class="consejo"><strong>Revisá el panel</strong>La app no manda notificaciones al celular. Te enterás de un turno nuevo por el WhatsApp de la clienta y por el numerito de la pestaña Turnos. Si alguna clienta reserva y no te escribe, el turno igual está en el panel: conviene mirarlo una o dos veces por día.</p>
+  </section>
+
+  <section aria-labelledby="preguntas">
+    <div class="intro-seccion">
+      <span class="etiqueta">Preguntas</span>
+      <h2 id="preguntas">Si te pasa algo de esto</h2>
+    </div>
+    <div class="preguntas">
+      <details><summary>¿Mis clientas tienen que instalar algo?</summary><p>No. Abren el link en el navegador del celular, reservan y listo. La única que instala la app sos vos, para tener el panel a mano.</p></details>
+      <details><summary>Cambié un horario y no se ve en la página</summary><p>Fijate si tocaste <strong>Guardar cambios</strong>. Si la barra de guardar sigue abajo, los cambios todavía no se guardaron.</p></details>
+      <details><summary>Me olvidé la contraseña</summary><p>Avisale a Roberto: él puede volver a ponerte una contraseña inicial.</p></details>
+      <details><summary>¿Lo puedo usar desde la compu?</summary><p>Sí. Abrí el link del panel en cualquier navegador y entrá con tu usuario y contraseña.</p></details>
+      <details><summary>Una clienta me dice que no le aparecen horarios</summary><p>Revisá en <strong>Agenda</strong> que ese día esté marcado como <strong>Atiendo</strong> y que no lo hayas cerrado en Días especiales. Si el día está lleno, en el calendario aparece rayado.</p></details>
+      <details><summary>Quiero cambiar mi número de WhatsApp o la dirección</summary><p>Eso no se cambia desde el panel, para que un error de tipeo no corte los mensajes. Pedíselo a Roberto.</p></details>
+    </div>
+  </section>
+
+  <footer>
+    <span>ERHOS Estética · La Paz 668, Paraná, Entre Ríos</span>
+    <span>Los nombres que aparecen en las capturas son de ejemplo.</span>
+  </footer>
+</main>
+
+<script>
+  for (const b of document.querySelectorAll("[data-copiar]")) {
+    b.addEventListener("click", async () => {
+      const texto = b.dataset.copiar;
+      try {
+        await navigator.clipboard.writeText(texto);
+        b.textContent = "Copiado";
+      } catch {
+        const a = b.parentElement.querySelector("a");
+        const r = document.createRange();
+        r.selectNodeContents(a);
+        const s = getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+        b.textContent = "Seleccionado";
+      }
+      setTimeout(() => (b.textContent = "Copiar"), 1800);
+    });
+  }
+</script>
+
+</body>
+</html>

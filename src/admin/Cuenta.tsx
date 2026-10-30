@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink, KeyRound, LogOut, Share, Smartphone, SquarePlus, EllipsisVertical } from "lucide-react";
+import { BookOpen, ExternalLink, KeyRound, LogOut, Share, Smartphone, SquarePlus, EllipsisVertical } from "lucide-react";
 import { NEGOCIO } from "../data";
 import { api, SinSesion, type Aviso } from "./api";
 
@@ -162,6 +162,9 @@ export function Cuenta({
       </section>
 
       <div className="cuenta-acciones">
+        <a className="btn btn-borde" href="/manual" target="_blank" rel="noopener">
+          <BookOpen /> Ver el manual
+        </a>
         <a className="btn btn-borde" href="/" target="_blank" rel="noopener">
           <ExternalLink /> Ver la página de turnos
         </a>
