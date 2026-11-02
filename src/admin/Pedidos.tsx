@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarPlus, Check, Phone, RefreshCw, Search, Trash2, TriangleAlert, Undo2, X } from "lucide-react";
 import { SERVICIOS, type Catalogo, type ServicioId } from "../data";
-import { ahoraEnParana, aMin, formatoDuracion, tramosDe, turnosLibres, type Intervalo } from "../horarios";
+import { ahoraEnParana, aMin, formatoDuracion, ofreceServicio, tramosDe, turnosLibres, type Intervalo } from "../horarios";
 import { IconoWhatsApp, Ramita } from "../icons";
 import { codigoNuevo, fechaLarga, horaDe, linkWhatsApp, type Solicitud } from "../turno";
 import { api, SinSesion, type Aviso } from "./api";
@@ -351,10 +351,13 @@ function AnotarTurno({
   const ocupados: Intervalo[] = solicitudes
     .filter((s) => s.fecha === fecha && s.estado !== "cancelado" && s.hora)
     .map((s) => [aMin(s.hora!), aMin(s.hora!) + (s.duracion ?? 30)]);
-  const sugeridos = fecha ? turnosLibres(cat, fecha, duracion, ocupados).slice(0, 12) : [];
+  const sugeridos = fecha ? turnosLibres(cat, fecha, duracion, ocupados, servicio).slice(0, 12) : [];
 
   // Se puede anotar fuera de horario o encimado; solo se avisa.
   const aviso = (() => {
+    if (fecha && !ofreceServicio(cat, fecha, servicio)) {
+      return `Ese día lo dejaste solo para ${(cat.soloServicios[fecha] ?? []).map((id) => SERVICIOS[id].titulo.toLowerCase()).join(" y ")}.`;
+    }
     if (!fecha || !hora) return "";
     const ini = aMin(hora);
     const fin = ini + duracion;

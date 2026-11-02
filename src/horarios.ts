@@ -1,7 +1,7 @@
 // Cálculo de turnos libres. Lo usan la página (para mostrar horarios) y el servidor (para validar),
 // así los dos cuentan igual. Todo en hora de Paraná.
 
-import type { Catalogo, Tramo } from "./data";
+import type { Catalogo, ServicioId, Tramo } from "./data";
 
 export const ZONA_HORARIA = "America/Argentina/Buenos_Aires";
 export const PASO_MIN = 30; // cada cuánto arranca un turno
@@ -75,7 +75,20 @@ export function limpiarTramos(tramos: Tramo[]): Tramo[] {
   return unidos.slice(0, 6);
 }
 
-export function turnosLibres(cat: Catalogo, iso: string, duracion: number, ocupados: Intervalo[]): string[] {
+// Si ese día está limitado a ciertos servicios (por ejemplo, una jornada de depilación).
+export function ofreceServicio(cat: Catalogo, iso: string, servicio?: ServicioId | null): boolean {
+  const solo = cat.soloServicios[iso];
+  return !servicio || !solo || solo.includes(servicio);
+}
+
+export function turnosLibres(
+  cat: Catalogo,
+  iso: string,
+  duracion: number,
+  ocupados: Intervalo[],
+  servicio?: ServicioId | null,
+): string[] {
+  if (!ofreceServicio(cat, iso, servicio)) return [];
   const { hoy, minutos } = ahoraEnParana();
   if (iso < hoy || iso > sumarDias(hoy, cat.diasAMostrar)) return [];
   const minimo = iso === hoy ? minutos + MARGEN_HOY_MIN : 0;

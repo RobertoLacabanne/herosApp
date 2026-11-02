@@ -39,6 +39,7 @@ export interface Catalogo {
   combosFaciales: Combo[];
   semana: Tramo[][]; // índice 0 = domingo … 6 = sábado; vacío = no atiende
   excepciones: Record<string, Tramo[]>; // AAAA-MM-DD → horario de ese día; [] = no atiende
+  soloServicios: Record<string, ServicioId[]>; // AAAA-MM-DD → únicos servicios que se ofrecen ese día (ej.: jornada de depilación)
   diasAMostrar: number;
   horariosRevisados: boolean; // false mientras sigan los horarios de ejemplo
 }
@@ -59,6 +60,8 @@ const MANANA_Y_TARDE: Tramo[] = [
   { desde: "09:00", hasta: "13:00" },
   { desde: "16:00", hasta: "20:00" },
 ];
+
+export const SERVICIO_IDS: ServicioId[] = ["laser", "facial"];
 
 export const CATALOGO_INICIAL: Catalogo = {
   duracionMin: { laser: 30, facial: 90 },
@@ -103,6 +106,7 @@ export const CATALOGO_INICIAL: Catalogo = {
   ],
   semana: [[], MANANA_Y_TARDE, MANANA_Y_TARDE, MANANA_Y_TARDE, MANANA_Y_TARDE, MANANA_Y_TARDE, [MANANA_Y_TARDE[0]]],
   excepciones: {},
+  soloServicios: {},
   diasAMostrar: 21,
   horariosRevisados: false,
 };
@@ -184,6 +188,15 @@ export function normalizarCatalogo(entrada: unknown): Catalogo {
     : base.tratamientos;
   const nombresTrat = tratamientos.map((t) => t.nombre);
 
+  // Días con servicios limitados; si se eligen todos, no hay limitación.
+  const soloServicios: Record<string, ServicioId[]> = {};
+  if (c.soloServicios && typeof c.soloServicios === "object") {
+    for (const [k, v] of Object.entries(c.soloServicios as Record<string, unknown>).slice(0, 300)) {
+      if (!fechaOk(k) || !Array.isArray(v)) continue;
+      const ids = SERVICIO_IDS.filter((id) => v.includes(id));
+      if (ids.length && ids.length < SERVICIO_IDS.length) soloServicios[k] = ids;
+    }
+  }
   const mostrar = Number(c.diasAMostrar);
 
   return {
@@ -197,6 +210,7 @@ export function normalizarCatalogo(entrada: unknown): Catalogo {
     combosFaciales: combos(c.combosFaciales, nombresTrat) ?? base.combosFaciales,
     semana,
     excepciones,
+    soloServicios,
     diasAMostrar: Number.isInteger(mostrar) && mostrar >= 7 && mostrar <= 90 ? mostrar : base.diasAMostrar,
     horariosRevisados: c.horariosRevisados === true,
   };

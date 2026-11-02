@@ -2672,3 +2672,43 @@ dialog.hoja::backdrop {
     align-items: start;
   }
 }
+
+/* Días limitados a un servicio */
+.dia-solo {
+  position: relative;
+}
+.dia-solo::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 999px;
+  background: var(--ciruela-500);
+}
+.dia-solo[aria-pressed="true"]::after {
+  background: #fff;
+}
+.ley-solo {
+  position: relative;
+  border: 1px solid var(--borde-fuerte);
+}
+.ley-solo::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ciruela-500);
+}
+.especial-solo {
+  font-weight: 600;
+  color: var(--ciruela-700);
+}
+.chip:disabled {
+  cursor: not-allowed;
+}

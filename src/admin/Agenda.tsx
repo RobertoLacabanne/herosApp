@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { CalendarOff, CalendarClock, Copy, Info, RotateCcw, X } from "lucide-react";
-import type { Catalogo, Tramo } from "../data";
+import { CalendarOff, CalendarClock, Check, Copy, Info, RotateCcw, X } from "lucide-react";
+import { SERVICIO_IDS, SERVICIOS, type Catalogo, type ServicioId, type Tramo } from "../data";
 import { ahoraEnParana, diaDeSemana, limpiarTramos, sumarDias } from "../horarios";
 import { fechaLarga, parseFecha } from "../turno";
 import { Hoja } from "./Hoja";
@@ -26,6 +26,8 @@ const DIAS_CALENDARIO = 56;
 
 type Modo = "normal" | "cerrado" | "especial";
 
+const nombresServicios = (ids: ServicioId[]) => ids.map((id) => SERVICIOS[id].titulo.toLowerCase()).join(" y ");
+
 export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void }) {
   const { hoy } = ahoraEnParana();
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
@@ -40,11 +42,15 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
       horariosRevisados: true,
     });
 
-  const setExcepcion = (iso: string, tramos: Tramo[] | null) => {
+  // tramos null = horario de siempre; servicios null = todos los servicios
+  const aplicarDia = (iso: string, tramos: Tramo[] | null, servicios: ServicioId[] | null) => {
     const excepciones = { ...cat.excepciones };
+    const soloServicios = { ...cat.soloServicios };
     if (tramos === null) delete excepciones[iso];
     else excepciones[iso] = tramos;
-    set({ ...cat, excepciones });
+    if (servicios === null || tramos?.length === 0) delete soloServicios[iso];
+    else soloServicios[iso] = servicios;
+    set({ ...cat, excepciones, soloServicios });
   };
 
   const dias = useMemo(() => {
@@ -52,9 +58,9 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
     return Array.from({ length: DIAS_CALENDARIO + ((diaDeSemana(hoy) + 6) % 7) }, (_, i) => sumarDias(primero, i));
   }, [hoy]);
 
-  const especiales = Object.entries(cat.excepciones)
-    .filter(([iso]) => iso >= hoy)
-    .sort(([a], [b]) => (a < b ? -1 : 1));
+  const especiales = [...new Set([...Object.keys(cat.excepciones), ...Object.keys(cat.soloServicios)])]
+    .filter((iso) => iso >= hoy)
+    .sort();
 
   return (
     <>
@@ -127,7 +133,8 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
           <CalendarOff /> Días especiales
         </h2>
         <p className="ed-bajada">
-          Tocá un día para cerrarlo (vacaciones, feriados) o para atender en otro horario solo ese día.
+          Tocá un día para cerrarlo (vacaciones, feriados), atender en otro horario o dejarlo para un solo servicio, como
+          una jornada de depilación.
         </p>
 
         <div className="cal-admin">
@@ -142,14 +149,15 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
             const cerrado = excepcion?.length === 0;
             const especial = !!excepcion?.length;
             const normalCerrado = !excepcion && cat.semana[diaDeSemana(iso)].length === 0;
+            const solo = !cerrado && !normalCerrado ? cat.soloServicios[iso] : undefined;
             const fecha = parseFecha(iso);
             return (
               <button
                 key={iso}
                 type="button"
-                className={`dia ${cerrado ? "dia-bloqueado" : ""} ${especial ? "dia-especial" : ""} ${normalCerrado ? "dia-libre" : ""}`}
+                className={`dia ${cerrado ? "dia-bloqueado" : ""} ${especial ? "dia-especial" : ""} ${normalCerrado ? "dia-libre" : ""} ${solo ? "dia-solo" : ""}`}
                 disabled={pasado}
-                aria-label={`${fechaLarga(iso)}: ${excepcion ? (cerrado ? "cerrado" : "horario especial") : normalCerrado ? "no atendés" : "horario de siempre"}`}
+                aria-label={`${fechaLarga(iso)}: ${excepcion ? (cerrado ? "cerrado" : "horario especial") : normalCerrado ? "no atendés" : "horario de siempre"}${solo ? `, solo ${nombresServicios(solo)}` : ""}`}
                 onClick={() => setDiaAbierto(iso)}
               >
                 <span>
@@ -172,6 +180,9 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
           <span>
             <i className="ley ley-libre" /> No atendés
           </span>
+          <span>
+            <i className="ley ley-solo" /> Un solo servicio
+          </span>
         </div>
 
         {especiales.length > 0 && (
@@ -180,22 +191,30 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
               Próximos días especiales <small>{especiales.length}</small>
             </h3>
             <ul className="especiales">
-              {especiales.map(([iso, tramos]) => (
+              {especiales.map((iso) => {
+                const tramos = cat.excepciones[iso];
+                const solo = cat.soloServicios[iso];
+                const horario = tramos === undefined ? "Horario de siempre" : tramos.length ? textoTramos(tramos) : "Cerrado";
+                return (
                 <li key={iso}>
                   <button type="button" className="especial-dato" onClick={() => setDiaAbierto(iso)}>
                     <strong>{fechaLarga(iso)}</strong>
-                    <span className={tramos.length ? "" : "texto-peligro"}>{tramos.length ? textoTramos(tramos) : "Cerrado"}</span>
+                    <span className={tramos?.length === 0 ? "texto-peligro" : ""}>
+                      {horario}
+                      {solo && tramos?.length !== 0 && <b className="especial-solo"> · Solo {nombresServicios(solo)}</b>}
+                    </span>
                   </button>
                   <button
                     type="button"
                     className="btn btn-sm btn-fantasma btn-icono"
                     aria-label={`Volver al horario de siempre el ${fechaLarga(iso)}`}
-                    onClick={() => setExcepcion(iso, null)}
+                    onClick={() => aplicarDia(iso, null, null)}
                   >
                     <X />
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         )}
@@ -222,8 +241,8 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
         iso={diaAbierto}
         cat={cat}
         onCerrar={() => setDiaAbierto(null)}
-        onAplicar={(iso, tramos) => {
-          setExcepcion(iso, tramos);
+        onAplicar={(iso, tramos, servicios) => {
+          aplicarDia(iso, tramos, servicios);
           setDiaAbierto(null);
         }}
       />
@@ -240,13 +259,14 @@ function EditorDia({
   iso: string | null;
   cat: Catalogo;
   onCerrar: () => void;
-  onAplicar: (iso: string, tramos: Tramo[] | null) => void;
+  onAplicar: (iso: string, tramos: Tramo[] | null, servicios: ServicioId[] | null) => void;
 }) {
   const siempre = iso ? cat.semana[diaDeSemana(iso)] : [];
   const actual = iso ? cat.excepciones[iso] : undefined;
   const modoInicial: Modo = actual === undefined ? "normal" : actual.length ? "especial" : "cerrado";
   const [modo, setModo] = useState<Modo>(modoInicial);
   const [tramos, setTramos] = useState<Tramo[]>([]);
+  const [servicios, setServicios] = useState<ServicioId[]>(SERVICIO_IDS);
   const [abiertoPara, setAbiertoPara] = useState<string | null>(null);
 
   // al abrir otro día, se arranca de su configuración
@@ -254,7 +274,12 @@ function EditorDia({
     setAbiertoPara(iso);
     setModo(modoInicial);
     setTramos(actual?.length ? actual : siempre.length ? siempre : [{ desde: "09:00", hasta: "13:00" }]);
+    setServicios(cat.soloServicios[iso] ?? SERVICIO_IDS);
   }
+
+  const alternarServicio = (id: ServicioId) =>
+    setServicios((l) => (l.includes(id) ? (l.length > 1 ? l.filter((x) => x !== id) : l) : SERVICIO_IDS.filter((x) => x === id || l.includes(x))));
+  const todos = servicios.length === SERVICIO_IDS.length;
 
   const opciones: [Modo, string, string][] = [
     ["normal", "Horario de siempre", siempre.length ? textoTramos(siempre) : "Ese día no atendés"],
@@ -278,7 +303,9 @@ function EditorDia({
             type="button"
             className="btn btn-primario"
             disabled={modo === "especial" && tramosOk.length === 0}
-            onClick={() => iso && onAplicar(iso, modo === "normal" ? null : modo === "cerrado" ? [] : tramosOk)}
+            onClick={() =>
+              iso && onAplicar(iso, modo === "normal" ? null : modo === "cerrado" ? [] : tramosOk, todos ? null : servicios)
+            }
           >
             Aplicar
           </button>
@@ -299,6 +326,37 @@ function EditorDia({
       {modo === "especial" && (
         <div className="ed-sub">
           <Tramos tramos={tramos} etiqueta="Horario especial" onChange={setTramos} />
+        </div>
+      )}
+      {modo !== "cerrado" && (
+        <div className="ed-sub">
+          <h3 className="seccion-titulo">
+            ¿Qué servicios ofrecés ese día? <small>Por ejemplo, una jornada de depilación</small>
+          </h3>
+          <div className="chips" role="group" aria-label="Servicios de ese día">
+            {SERVICIO_IDS.map((id) => {
+              const activo = servicios.includes(id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className="chip"
+                  aria-pressed={activo}
+                  disabled={activo && servicios.length === 1}
+                  title={activo && servicios.length === 1 ? "Tiene que quedar al menos un servicio" : undefined}
+                  onClick={() => alternarServicio(id)}
+                >
+                  {activo && <Check />}
+                  {SERVICIOS[id].titulo}
+                </button>
+              );
+            })}
+          </div>
+          {!todos && (
+            <p className="ayuda" style={{ marginTop: "var(--s-2)" }}>
+              Ese día solo se van a poder reservar turnos de {nombresServicios(servicios).toLowerCase()}.
+            </p>
+          )}
         </div>
       )}
       {modoInicial !== "normal" && modo === "normal" && (

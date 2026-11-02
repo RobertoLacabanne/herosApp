@@ -17,6 +17,7 @@ export default async (req: Request, context: Context) => {
     // los días especiales que ya pasaron no hacen falta
     const { hoy } = ahoraEnParana();
     catalogo.excepciones = Object.fromEntries(Object.entries(catalogo.excepciones).filter(([k]) => k >= hoy));
+    catalogo.soloServicios = Object.fromEntries(Object.entries(catalogo.soloServicios).filter(([k]) => k >= hoy));
     await guardarCatalogo(catalogo);
     return json(catalogo);
   }

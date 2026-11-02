@@ -46,7 +46,7 @@ async function crear(req: Request, context: Context) {
   const duracion = catalogo.duracionMin[servicio];
 
   if (!manual) {
-    const libres = turnosLibres(catalogo, fecha, duracion, ocupados(await listarSolicitudes(), fecha));
+    const libres = turnosLibres(catalogo, fecha, duracion, ocupados(await listarSolicitudes(), fecha), servicio);
     if (!libres.includes(hora)) {
       return json({ error: "Ese horario se acaba de ocupar. Elegí otro, por favor.", codigo: "ocupado" }, 409);
     }

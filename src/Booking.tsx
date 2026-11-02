@@ -10,6 +10,7 @@ import {
   sumarDias,
   tramosDe,
   turnosLibres,
+  ofreceServicio,
   type Intervalo,
 } from "./horarios";
 import { IconoWhatsApp, IlusFacial, IlusLaser, Logo } from "./icons";
@@ -466,7 +467,7 @@ function PasoDia({
   const { dias, columnas, rango } = useMemo(() => {
     const fechas = fechasOfrecidas(cat);
     // turnos libres por día (si todavía no llegaron los ocupados, se calculan sin ellos)
-    const libresDe = (iso: string) => turnosLibres(cat, iso, duracion, ocupados?.[iso] ?? []);
+    const libresDe = (iso: string) => turnosLibres(cat, iso, duracion, ocupados?.[iso] ?? [], pedido.servicio);
     const conHorario = fechas.filter((f) => tramosDe(cat, f).length > 0);
     const columnas = [1, 2, 3, 4, 5, 6, 0].filter(
       (d) => cat.semana[d].length > 0 || conHorario.some((f) => diaDeSemana(f) === d),
@@ -478,12 +479,18 @@ function PasoDia({
     for (let f = primero; f <= ultimo; f = sumarDias(f, 1)) {
       if (!columnas.includes(diaDeSemana(f))) continue;
       const enRango = f >= fechas[0];
-      dias.push({ iso: f, libres: enRango ? libresDe(f) : [], atiende: tramosDe(cat, f).length > 0, enRango });
+      dias.push({
+        iso: f,
+        libres: enRango ? libresDe(f) : [],
+        // atiende ese día y ofrece el servicio elegido (un día puede ser solo de depilación, por ejemplo)
+        atiende: tramosDe(cat, f).length > 0 && ofreceServicio(cat, f, pedido.servicio),
+        enRango,
+      });
     }
     const mes = (iso: string) => parseFecha(iso).toLocaleDateString("es-AR", { month: "long" });
     const rango = mes(fechas[0]) === mes(ultimo) ? mes(ultimo) : `${mes(fechas[0])} – ${mes(ultimo)}`;
     return { dias, columnas, rango };
-  }, [cat, duracion, ocupados]);
+  }, [cat, duracion, ocupados, pedido.servicio]);
 
   const elegido = dias.find((d) => d.iso === pedido.fecha);
   const horarios = elegido?.libres ?? [];
