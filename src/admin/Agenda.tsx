@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { CalendarOff, CalendarClock, Check, Copy, Info, RotateCcw, X } from "lucide-react";
-import { SERVICIO_IDS, SERVICIOS, type Catalogo, type ServicioId, type Tramo } from "../data";
-import { ahoraEnParana, diaDeSemana, limpiarTramos, sumarDias } from "../horarios";
+import { CalendarClock, CalendarOff, Copy, Info, X } from "lucide-react";
+import { SERVICIO_IDS, type Catalogo, type ServicioId, type Tramo } from "../data";
+import { ahoraEnParana, diaDeSemana, limpiarTramos, serviciosDe, sumarDias } from "../horarios";
 import { fechaLarga, parseFecha } from "../turno";
 import { Hoja } from "./Hoja";
 import { Tramos, textoTramos } from "./Tramos";
@@ -26,14 +26,55 @@ const DIAS_CALENDARIO = 56;
 
 type Modo = "normal" | "cerrado" | "especial";
 
-const nombresServicios = (ids: ServicioId[]) => ids.map((id) => SERVICIOS[id].titulo.toLowerCase()).join(" y ");
+// Qué servicios se ofrecen: todos, o uno solo (por ejemplo, una jornada de depilación).
+type OpcionServicios = "todos" | ServicioId;
+const OPCIONES_SERVICIOS: [OpcionServicios, string][] = [
+  ["todos", "Todo"],
+  ["laser", "Solo depilación"],
+  ["facial", "Solo faciales"],
+];
+const aOpcion = (l: ServicioId[] | null | undefined): OpcionServicios =>
+  l && l.length === 1 ? l[0] : "todos";
+const deOpcion = (o: OpcionServicios): ServicioId[] => (o === "todos" ? SERVICIO_IDS : [o]);
+const textoServicios = (l: ServicioId[] | null | undefined) =>
+  ({ todos: "", laser: "Solo depilación", facial: "Solo faciales" })[aOpcion(l)];
+const mismos = (a: ServicioId[], b: ServicioId[]) => a.length === b.length && a.every((x) => b.includes(x));
 
-export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void }) {
+// Aplica la configuración de una fecha. tramos null = horario de siempre.
+function cambiarDia(c: Catalogo, iso: string, tramos: Tramo[] | null, servicios: ServicioId[]): Catalogo {
+  const excepciones = { ...c.excepciones };
+  const soloServicios = { ...c.soloServicios };
+  if (tramos === null) delete excepciones[iso];
+  else excepciones[iso] = tramos;
+  const deLaSemana = c.serviciosSemana[String(diaDeSemana(iso))] ?? SERVICIO_IDS;
+  if (tramos?.length === 0 || mismos(servicios, deLaSemana)) delete soloServicios[iso];
+  else soloServicios[iso] = servicios;
+  return { ...c, excepciones, soloServicios };
+}
+
+export type GuardarDia = (cambiar: (c: Catalogo) => Catalogo, mensaje: string) => Promise<boolean>;
+
+export function Agenda({
+  cat,
+  set,
+  onGuardarDia,
+}: {
+  cat: Catalogo;
+  set: (c: Catalogo) => void;
+  onGuardarDia: GuardarDia;
+}) {
   const { hoy } = ahoraEnParana();
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
 
   const setSemana = (d: number, tramos: Tramo[]) =>
     set({ ...cat, semana: cat.semana.map((t, i) => (i === d ? tramos : t)), horariosRevisados: true });
+
+  const setServiciosSemana = (d: number, o: OpcionServicios) => {
+    const serviciosSemana = { ...cat.serviciosSemana };
+    if (o === "todos") delete serviciosSemana[String(d)];
+    else serviciosSemana[String(d)] = [o];
+    set({ ...cat, serviciosSemana });
+  };
 
   const copiarATodos = (d: number) =>
     set({
@@ -41,17 +82,6 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
       semana: cat.semana.map((t, i) => (i !== d && t.length ? cat.semana[d].map((x) => ({ ...x })) : t)),
       horariosRevisados: true,
     });
-
-  // tramos null = horario de siempre; servicios null = todos los servicios
-  const aplicarDia = (iso: string, tramos: Tramo[] | null, servicios: ServicioId[] | null) => {
-    const excepciones = { ...cat.excepciones };
-    const soloServicios = { ...cat.soloServicios };
-    if (tramos === null) delete excepciones[iso];
-    else excepciones[iso] = tramos;
-    if (servicios === null || tramos?.length === 0) delete soloServicios[iso];
-    else soloServicios[iso] = servicios;
-    set({ ...cat, excepciones, soloServicios });
-  };
 
   const dias = useMemo(() => {
     const primero = sumarDias(hoy, -((diaDeSemana(hoy) + 6) % 7));
@@ -89,52 +119,11 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
 
       <section className="ed-bloque">
         <h2 className="ed-titulo">
-          <CalendarClock /> Tu semana
-        </h2>
-        <p className="ed-bajada">Tu horario de siempre. Si cortás al mediodía, agregá dos horarios en el mismo día.</p>
-        <div className="semana">
-          {SEMANA.map(([d, , largo]) => {
-            const tramos = cat.semana[d];
-            const atiende = tramos.length > 0;
-            return (
-              <div key={d} className={`semana-dia ${atiende ? "" : "semana-cerrado"}`}>
-                <div className="semana-cabeza">
-                  <strong>{largo}</strong>
-                  <label className="interruptor">
-                    <input
-                      type="checkbox"
-                      checked={atiende}
-                      onChange={(e) =>
-                        setSemana(d, e.target.checked ? [{ desde: "09:00", hasta: "13:00" }] : [])
-                      }
-                    />
-                    <span aria-hidden="true" />
-                    {atiende ? "Atiendo" : "No atiendo"}
-                  </label>
-                </div>
-                {atiende && (
-                  <>
-                    <Tramos tramos={tramos} etiqueta={largo} onChange={(t) => setSemana(d, t)} />
-                    {cat.semana.some((t, i) => i !== d && t.length) && (
-                      <button type="button" className="link link-chico" onClick={() => copiarATodos(d)}>
-                        <Copy /> Copiar este horario a los demás días que atendés
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="ed-bloque">
-        <h2 className="ed-titulo">
           <CalendarOff /> Días especiales
         </h2>
         <p className="ed-bajada">
-          Tocá un día para cerrarlo (vacaciones, feriados), atender en otro horario o dejarlo para un solo servicio, como
-          una jornada de depilación.
+          Tocá un día para dejarlo <strong>solo para depilación</strong> (o solo faciales), cerrarlo por vacaciones o
+          feriado, o atender en otro horario. Se guarda al toque.
         </p>
 
         <div className="cal-admin">
@@ -149,7 +138,7 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
             const cerrado = excepcion?.length === 0;
             const especial = !!excepcion?.length;
             const normalCerrado = !excepcion && cat.semana[diaDeSemana(iso)].length === 0;
-            const solo = !cerrado && !normalCerrado ? cat.soloServicios[iso] : undefined;
+            const solo = !cerrado && !normalCerrado ? textoServicios(serviciosDe(cat, iso)) : "";
             const fecha = parseFecha(iso);
             return (
               <button
@@ -157,7 +146,7 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
                 type="button"
                 className={`dia ${cerrado ? "dia-bloqueado" : ""} ${especial ? "dia-especial" : ""} ${normalCerrado ? "dia-libre" : ""} ${solo ? "dia-solo" : ""}`}
                 disabled={pasado}
-                aria-label={`${fechaLarga(iso)}: ${excepcion ? (cerrado ? "cerrado" : "horario especial") : normalCerrado ? "no atendés" : "horario de siempre"}${solo ? `, solo ${nombresServicios(solo)}` : ""}`}
+                aria-label={`${fechaLarga(iso)}: ${excepcion ? (cerrado ? "cerrado" : "horario especial") : normalCerrado ? "no atendés" : "horario de siempre"}${solo ? `, ${solo.toLowerCase()}` : ""}`}
                 onClick={() => setDiaAbierto(iso)}
               >
                 <span>
@@ -172,6 +161,9 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
         </div>
         <div className="leyendas">
           <span>
+            <i className="ley ley-solo" /> Un solo servicio
+          </span>
+          <span>
             <i className="ley ley-cerrado" /> Cerrado
           </span>
           <span>
@@ -179,9 +171,6 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
           </span>
           <span>
             <i className="ley ley-libre" /> No atendés
-          </span>
-          <span>
-            <i className="ley ley-solo" /> Un solo servicio
           </span>
         </div>
 
@@ -193,31 +182,90 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
             <ul className="especiales">
               {especiales.map((iso) => {
                 const tramos = cat.excepciones[iso];
-                const solo = cat.soloServicios[iso];
+                const servicios = tramos?.length === 0 ? "" : textoServicios(serviciosDe(cat, iso));
                 const horario = tramos === undefined ? "Horario de siempre" : tramos.length ? textoTramos(tramos) : "Cerrado";
                 return (
-                <li key={iso}>
-                  <button type="button" className="especial-dato" onClick={() => setDiaAbierto(iso)}>
-                    <strong>{fechaLarga(iso)}</strong>
-                    <span className={tramos?.length === 0 ? "texto-peligro" : ""}>
-                      {horario}
-                      {solo && tramos?.length !== 0 && <b className="especial-solo"> · Solo {nombresServicios(solo)}</b>}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-fantasma btn-icono"
-                    aria-label={`Volver al horario de siempre el ${fechaLarga(iso)}`}
-                    onClick={() => aplicarDia(iso, null, null)}
-                  >
-                    <X />
-                  </button>
-                </li>
+                  <li key={iso}>
+                    <button type="button" className="especial-dato" onClick={() => setDiaAbierto(iso)}>
+                      <strong>{fechaLarga(iso)}</strong>
+                      <span className={tramos?.length === 0 ? "texto-peligro" : ""}>
+                        {servicios && <b className="especial-solo">{servicios} · </b>}
+                        {horario}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-fantasma btn-icono"
+                      aria-label={`Volver a lo de siempre el ${fechaLarga(iso)}`}
+                      onClick={() =>
+                        onGuardarDia(
+                          (c) => cambiarDia(c, iso, null, c.serviciosSemana[String(diaDeSemana(iso))] ?? SERVICIO_IDS),
+                          `${fechaLarga(iso)}: volvió a lo de siempre`,
+                        )
+                      }
+                    >
+                      <X />
+                    </button>
+                  </li>
                 );
               })}
             </ul>
           </div>
         )}
+      </section>
+
+      <section className="ed-bloque">
+        <h2 className="ed-titulo">
+          <CalendarClock /> Tu semana
+        </h2>
+        <p className="ed-bajada">
+          Tu horario de siempre. Si cortás al mediodía, agregá dos horarios en el mismo día. Si un día de la semana es
+          siempre de depilación, elegilo en <strong>Ofrecés</strong>.
+        </p>
+        <div className="semana">
+          {SEMANA.map(([d, , largo]) => {
+            const tramos = cat.semana[d];
+            const atiende = tramos.length > 0;
+            return (
+              <div key={d} className={`semana-dia ${atiende ? "" : "semana-cerrado"}`}>
+                <div className="semana-cabeza">
+                  <strong>{largo}</strong>
+                  <label className="interruptor">
+                    <input
+                      type="checkbox"
+                      checked={atiende}
+                      onChange={(e) => setSemana(d, e.target.checked ? [{ desde: "09:00", hasta: "13:00" }] : [])}
+                    />
+                    <span aria-hidden="true" />
+                    {atiende ? "Atiendo" : "No atiendo"}
+                  </label>
+                </div>
+                {atiende && (
+                  <>
+                    <Tramos tramos={tramos} etiqueta={largo} onChange={(t) => setSemana(d, t)} />
+                    <label className="semana-ofreces">
+                      <span>Ofrecés</span>
+                      <select
+                        className="input input-select"
+                        value={aOpcion(cat.serviciosSemana[String(d)])}
+                        onChange={(e) => setServiciosSemana(d, e.target.value as OpcionServicios)}
+                      >
+                        <option value="todos">Todos los servicios</option>
+                        <option value="laser">Solo depilación láser</option>
+                        <option value="facial">Solo tratamientos faciales</option>
+                      </select>
+                    </label>
+                    {cat.semana.some((t, i) => i !== d && t.length) && (
+                      <button type="button" className="link link-chico" onClick={() => copiarATodos(d)}>
+                        <Copy /> Copiar este horario a los demás días que atendés
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section className="ed-bloque">
@@ -241,9 +289,12 @@ export function Agenda({ cat, set }: { cat: Catalogo; set: (c: Catalogo) => void
         iso={diaAbierto}
         cat={cat}
         onCerrar={() => setDiaAbierto(null)}
-        onAplicar={(iso, tramos, servicios) => {
-          aplicarDia(iso, tramos, servicios);
-          setDiaAbierto(null);
+        onGuardar={async (iso, tramos, servicios) => {
+          const ok = await onGuardarDia(
+            (c) => cambiarDia(c, iso, tramos, servicios),
+            `${fechaLarga(iso)} guardado. Ya se ve en la página.`,
+          );
+          if (ok) setDiaAbierto(null);
         }}
       />
     </>
@@ -254,46 +305,50 @@ function EditorDia({
   iso,
   cat,
   onCerrar,
-  onAplicar,
+  onGuardar,
 }: {
   iso: string | null;
   cat: Catalogo;
   onCerrar: () => void;
-  onAplicar: (iso: string, tramos: Tramo[] | null, servicios: ServicioId[] | null) => void;
+  onGuardar: (iso: string, tramos: Tramo[] | null, servicios: ServicioId[]) => Promise<void>;
 }) {
   const siempre = iso ? cat.semana[diaDeSemana(iso)] : [];
   const actual = iso ? cat.excepciones[iso] : undefined;
   const modoInicial: Modo = actual === undefined ? "normal" : actual.length ? "especial" : "cerrado";
   const [modo, setModo] = useState<Modo>(modoInicial);
   const [tramos, setTramos] = useState<Tramo[]>([]);
-  const [servicios, setServicios] = useState<ServicioId[]>(SERVICIO_IDS);
+  const [servicios, setServicios] = useState<OpcionServicios>("todos");
   const [abiertoPara, setAbiertoPara] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
 
   // al abrir otro día, se arranca de su configuración
   if (iso && iso !== abiertoPara) {
     setAbiertoPara(iso);
     setModo(modoInicial);
     setTramos(actual?.length ? actual : siempre.length ? siempre : [{ desde: "09:00", hasta: "13:00" }]);
-    setServicios(cat.soloServicios[iso] ?? SERVICIO_IDS);
+    setServicios(aOpcion(serviciosDe(cat, iso)));
   }
-
-  const alternarServicio = (id: ServicioId) =>
-    setServicios((l) => (l.includes(id) ? (l.length > 1 ? l.filter((x) => x !== id) : l) : SERVICIO_IDS.filter((x) => x === id || l.includes(x))));
-  const todos = servicios.length === SERVICIO_IDS.length;
 
   const opciones: [Modo, string, string][] = [
     ["normal", "Horario de siempre", siempre.length ? textoTramos(siempre) : "Ese día no atendés"],
-    ["cerrado", "No atiendo este día", "Nadie va a poder reservar"],
     ["especial", "Horario especial", "Solo para este día"],
+    ["cerrado", "No atiendo este día", "Nadie va a poder reservar"],
   ];
   const tramosOk = limpiarTramos(tramos);
+  const cerrado = modo === "cerrado";
+
+  async function guardar() {
+    if (!iso) return;
+    setGuardando(true);
+    await onGuardar(iso, modo === "normal" ? null : cerrado ? [] : tramosOk, deOpcion(servicios));
+    setGuardando(false);
+  }
 
   return (
     <Hoja
       abierta={!!iso}
       onCerrar={onCerrar}
       titulo={iso ? fechaLarga(iso) : ""}
-      bajada="¿Cómo atendés ese día?"
       pie={
         <>
           <button type="button" className="btn btn-fantasma" onClick={onCerrar}>
@@ -302,68 +357,60 @@ function EditorDia({
           <button
             type="button"
             className="btn btn-primario"
-            disabled={modo === "especial" && tramosOk.length === 0}
-            onClick={() =>
-              iso && onAplicar(iso, modo === "normal" ? null : modo === "cerrado" ? [] : tramosOk, todos ? null : servicios)
-            }
+            disabled={(modo === "especial" && tramosOk.length === 0) || guardando}
+            onClick={guardar}
           >
-            Aplicar
+            {guardando ? "Guardando…" : "Guardar"}
           </button>
         </>
       }
     >
-      <div className="opciones-dia" role="radiogroup" aria-label="Cómo atendés ese día">
-        {opciones.map(([id, titulo, detalle]) => (
-          <button key={id} type="button" role="radio" aria-checked={modo === id} className="opcion-dia" onClick={() => setModo(id)}>
-            <span className="radio" aria-hidden="true" />
-            <span>
-              <strong>{titulo}</strong>
-              <small>{detalle}</small>
-            </span>
-          </button>
-        ))}
-      </div>
-      {modo === "especial" && (
-        <div className="ed-sub">
-          <Tramos tramos={tramos} etiqueta="Horario especial" onChange={setTramos} />
+      <div className={`dia-bloque ${cerrado ? "dia-bloque-apagado" : ""}`}>
+        <h3 className="seccion-titulo">¿Qué ofrecés ese día?</h3>
+        <div className="segmentado segmentado-ancho" role="radiogroup" aria-label="Servicios de ese día">
+          {OPCIONES_SERVICIOS.map(([id, txt]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={servicios === id}
+              disabled={cerrado}
+              onClick={() => setServicios(id)}
+            >
+              {txt}
+            </button>
+          ))}
         </div>
-      )}
-      {modo !== "cerrado" && (
-        <div className="ed-sub">
-          <h3 className="seccion-titulo">
-            ¿Qué servicios ofrecés ese día? <small>Por ejemplo, una jornada de depilación</small>
-          </h3>
-          <div className="chips" role="group" aria-label="Servicios de ese día">
-            {SERVICIO_IDS.map((id) => {
-              const activo = servicios.includes(id);
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  className="chip"
-                  aria-pressed={activo}
-                  disabled={activo && servicios.length === 1}
-                  title={activo && servicios.length === 1 ? "Tiene que quedar al menos un servicio" : undefined}
-                  onClick={() => alternarServicio(id)}
-                >
-                  {activo && <Check />}
-                  {SERVICIOS[id].titulo}
-                </button>
-              );
-            })}
-          </div>
-          {!todos && (
-            <p className="ayuda" style={{ marginTop: "var(--s-2)" }}>
-              Ese día solo se van a poder reservar turnos de {nombresServicios(servicios).toLowerCase()}.
-            </p>
-          )}
-        </div>
-      )}
-      {modoInicial !== "normal" && modo === "normal" && (
-        <p className="ayuda" style={{ marginTop: "var(--s-3)" }}>
-          <RotateCcw style={{ width: 12, height: 12, verticalAlign: -1 }} /> Vuelve a tu horario de siempre.
+        <p className="ayuda" style={{ marginTop: "var(--s-2)" }}>
+          {cerrado
+            ? "Ese día no atendés."
+            : servicios === "laser"
+              ? "Jornada de depilación: ese día solo se pueden reservar turnos de depilación láser."
+              : servicios === "facial"
+                ? "Ese día solo se pueden reservar tratamientos faciales."
+                : "Se puede reservar cualquier servicio."}
         </p>
-      )}
+      </div>
+
+      <div className="dia-bloque">
+        <h3 className="seccion-titulo">¿En qué horario?</h3>
+        <div className="opciones-dia" role="radiogroup" aria-label="Horario de ese día">
+          {opciones.map(([id, titulo, detalle]) => (
+            <button key={id} type="button" role="radio" aria-checked={modo === id} className="opcion-dia" onClick={() => setModo(id)}>
+              <span className="radio" aria-hidden="true" />
+              <span>
+                <strong>{titulo}</strong>
+                <small>{detalle}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+        {modo === "especial" && (
+          <div className="ed-sub">
+            <Tramos tramos={tramos} etiqueta="Horario especial" onChange={setTramos} />
+          </div>
+        )}
+      </div>
     </Hoja>
   );
 }

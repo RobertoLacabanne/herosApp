@@ -4,7 +4,7 @@ import { CATALOGO_INICIAL, normalizarCatalogo, type Catalogo } from "../data";
 import { Logo, Ramita } from "../icons";
 import { traerCatalogo } from "../useCatalogo";
 import { Acceso } from "./Acceso";
-import { Agenda } from "./Agenda";
+import { Agenda, type GuardarDia } from "./Agenda";
 import { api, SinSesion, type Aviso } from "./api";
 import { Cuenta } from "./Cuenta";
 import { Pedidos } from "./Pedidos";
@@ -58,6 +58,7 @@ function Admin({ usuario, onSalir }: { usuario: string; onSalir: () => void }) {
   const [catalogoListo, setCatalogoListo] = useState<boolean | null>(null);
 
   const hayCambios = JSON.stringify(original) !== JSON.stringify(borrador);
+  const versionNueva = useVersionNueva();
   const onAviso = useCallback((a: Aviso) => setAviso(a), []);
 
   const cargarCatalogo = useCallback(() => {
@@ -97,6 +98,24 @@ function Admin({ usuario, onSalir }: { usuario: string; onSalir: () => void }) {
     history.replaceState(null, "", `#${p}`);
     window.scrollTo({ top: 0 });
   }
+
+  // Guarda un cambio puntual (un día de la agenda) sin arrastrar otros cambios sin guardar.
+  const guardarDia: GuardarDia = async (cambiar, mensaje) => {
+    try {
+      const guardado = normalizarCatalogo(
+        await api<Catalogo>("/api/catalogo", { method: "PUT", body: JSON.stringify(cambiar(original)) }),
+      );
+      const sinOtrosCambios = JSON.stringify(borrador) === JSON.stringify(original);
+      setOriginal(guardado);
+      setBorrador(sinOtrosCambios ? guardado : cambiar(borrador));
+      setAviso({ texto: mensaje });
+      return true;
+    } catch (e) {
+      if (e instanceof SinSesion) onSalir();
+      else setAviso({ texto: (e as Error).message, tipo: "error" });
+      return false;
+    }
+  };
 
   async function guardar() {
     setGuardando(true);
@@ -142,7 +161,7 @@ function Admin({ usuario, onSalir }: { usuario: string; onSalir: () => void }) {
           <EsperandoCatalogo fallo={catalogoListo === false} onReintentar={cargarCatalogo} />
         )}
         {pestana === "servicios" && catalogoListo && <Servicios cat={borrador} set={setBorrador} />}
-        {pestana === "agenda" && catalogoListo && <Agenda cat={borrador} set={setBorrador} />}
+        {pestana === "agenda" && catalogoListo && <Agenda cat={borrador} set={setBorrador} onGuardarDia={guardarDia} />}
         {pestana === "cuenta" && <Cuenta usuario={usuario} onAviso={onAviso} onSalir={onSalir} />}
       </main>
 
@@ -154,6 +173,15 @@ function Admin({ usuario, onSalir }: { usuario: string; onSalir: () => void }) {
           </button>
           <button type="button" className="btn btn-primario btn-sm" onClick={guardar} disabled={guardando}>
             <Check /> {guardando ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </div>
+      )}
+
+      {versionNueva && (
+        <div className="aviso-version" role="status">
+          <span>Hay una versión nueva del panel.</span>
+          <button type="button" className="btn btn-primario btn-sm" onClick={() => location.reload()}>
+            <RefreshCw /> Actualizar
           </button>
         </div>
       )}
@@ -186,4 +214,31 @@ function EsperandoCatalogo({ fallo, onReintentar }: { fallo: boolean; onReintent
       </button>
     </div>
   );
+}
+
+// Avisa si se publicó una versión nueva mientras el panel estaba abierto (la app instalada puede quedar abierta días).
+function useVersionNueva() {
+  const [nueva, setNueva] = useState(false);
+  useEffect(() => {
+    const actual = document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/"]')?.src;
+    if (!actual) return; // en desarrollo no hay versión publicada
+    const revisar = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const html = await (await fetch("/panel", { cache: "no-store" })).text();
+        const publicado = html.match(/\/assets\/index-[^"']+\.js/)?.[0];
+        if (publicado && !actual.endsWith(publicado)) setNueva(true);
+      } catch {
+        /* sin red: se revisa la próxima vez */
+      }
+    };
+    revisar();
+    document.addEventListener("visibilitychange", revisar);
+    const t = setInterval(revisar, 10 * 60 * 1000);
+    return () => {
+      document.removeEventListener("visibilitychange", revisar);
+      clearInterval(t);
+    };
+  }, []);
+  return nueva;
 }

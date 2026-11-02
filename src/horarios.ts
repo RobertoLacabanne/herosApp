@@ -75,9 +75,14 @@ export function limpiarTramos(tramos: Tramo[]): Tramo[] {
   return unidos.slice(0, 6);
 }
 
-// Si ese día está limitado a ciertos servicios (por ejemplo, una jornada de depilación).
+// Servicios que se ofrecen en una fecha: lo que diga esa fecha, si no lo de su día de la semana; null = todos.
+export function serviciosDe(cat: Catalogo, iso: string): ServicioId[] | null {
+  return cat.soloServicios[iso] ?? cat.serviciosSemana[String(diaDeSemana(iso))] ?? null;
+}
+
+// Si ese día ofrece el servicio (un día puede ser solo de depilación, por ejemplo).
 export function ofreceServicio(cat: Catalogo, iso: string, servicio?: ServicioId | null): boolean {
-  const solo = cat.soloServicios[iso];
+  const solo = serviciosDe(cat, iso);
   return !servicio || !solo || solo.includes(servicio);
 }
 

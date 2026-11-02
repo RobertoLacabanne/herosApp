@@ -39,7 +39,8 @@ export interface Catalogo {
   combosFaciales: Combo[];
   semana: Tramo[][]; // índice 0 = domingo … 6 = sábado; vacío = no atiende
   excepciones: Record<string, Tramo[]>; // AAAA-MM-DD → horario de ese día; [] = no atiende
-  soloServicios: Record<string, ServicioId[]>; // AAAA-MM-DD → únicos servicios que se ofrecen ese día (ej.: jornada de depilación)
+  soloServicios: Record<string, ServicioId[]>; // AAAA-MM-DD → servicios que se ofrecen ese día (pisa la regla de la semana)
+  serviciosSemana: Record<string, ServicioId[]>; // "0".."6" → servicios de ese día de la semana; sin clave = todos
   diasAMostrar: number;
   horariosRevisados: boolean; // false mientras sigan los horarios de ejemplo
 }
@@ -107,6 +108,7 @@ export const CATALOGO_INICIAL: Catalogo = {
   semana: [[], MANANA_Y_TARDE, MANANA_Y_TARDE, MANANA_Y_TARDE, MANANA_Y_TARDE, MANANA_Y_TARDE, [MANANA_Y_TARDE[0]]],
   excepciones: {},
   soloServicios: {},
+  serviciosSemana: {},
   diasAMostrar: 21,
   horariosRevisados: false,
 };
@@ -188,13 +190,22 @@ export function normalizarCatalogo(entrada: unknown): Catalogo {
     : base.tratamientos;
   const nombresTrat = tratamientos.map((t) => t.nombre);
 
-  // Días con servicios limitados; si se eligen todos, no hay limitación.
+  // Servicios por fecha (una fecha puede volver a "todos" aunque su día de la semana esté limitado).
   const soloServicios: Record<string, ServicioId[]> = {};
   if (c.soloServicios && typeof c.soloServicios === "object") {
     for (const [k, v] of Object.entries(c.soloServicios as Record<string, unknown>).slice(0, 300)) {
       if (!fechaOk(k) || !Array.isArray(v)) continue;
       const ids = SERVICIO_IDS.filter((id) => v.includes(id));
-      if (ids.length && ids.length < SERVICIO_IDS.length) soloServicios[k] = ids;
+      if (ids.length) soloServicios[k] = ids;
+    }
+  }
+  // Servicios por día de la semana; "todos" no se guarda.
+  const serviciosSemana: Record<string, ServicioId[]> = {};
+  if (c.serviciosSemana && typeof c.serviciosSemana === "object") {
+    for (const [k, v] of Object.entries(c.serviciosSemana as Record<string, unknown>)) {
+      if (!/^[0-6]$/.test(k) || !Array.isArray(v)) continue;
+      const ids = SERVICIO_IDS.filter((id) => v.includes(id));
+      if (ids.length && ids.length < SERVICIO_IDS.length) serviciosSemana[k] = ids;
     }
   }
   const mostrar = Number(c.diasAMostrar);
@@ -211,6 +222,7 @@ export function normalizarCatalogo(entrada: unknown): Catalogo {
     semana,
     excepciones,
     soloServicios,
+    serviciosSemana,
     diasAMostrar: Number.isInteger(mostrar) && mostrar >= 7 && mostrar <= 90 ? mostrar : base.diasAMostrar,
     horariosRevisados: c.horariosRevisados === true,
   };
